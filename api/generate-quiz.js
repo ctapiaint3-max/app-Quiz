@@ -1,15 +1,13 @@
-// api/generate-quiz.js
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
+    return res.status(405).json({ error: 'Método no permitido' });
   }
 
   const { sourceText, numQuestions } = req.body;
-  const apiKey = process.env.GEMINI_API_KEY; // ¡La clave se lee de forma segura!
+  const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: 'API key no configurada en el servidor.' });
+    return res.status(500).json({ error: 'La clave API de Gemini no está configurada en el servidor.' });
   }
 
   const prompt = `Basado en el siguiente texto, genera ${numQuestions} preguntas de opción múltiple. Cada pregunta debe tener entre 2 y 4 respuestas, donde solo una es correcta. Identifica y asigna un tema relevante a cada pregunta basándote en el contenido. Formatea la salida completa como un único array de objetos JSON que se ajuste estrictamente al esquema proporcionado. El texto es: \n\n"${sourceText}"`;
@@ -23,18 +21,17 @@ export default async function handler(req, res) {
             items: {
                 type: "OBJECT",
                 properties: {
-                    id: { type: "NUMBER", description: "Identificador numérico único para la pregunta." },
-                    pregunta: { type: "STRING", description: "El texto de la pregunta." },
-                    tema: { type: "STRING", description: "El tema principal de la pregunta." },
+                    id: { type: "NUMBER" },
+                    pregunta: { type: "STRING" },
+                    tema: { type: "STRING" },
                     respuestas: {
                         type: "ARRAY",
-                        description: "Una lista de posibles respuestas.",
                         items: {
                             type: "OBJECT",
                             properties: {
-                                id: { type: "NUMBER", description: "Identificador numérico único para la respuesta." },
-                                respuesta: { type: "STRING", description: "El texto de la respuesta." },
-                                correcta: { type: "BOOLEAN", description: "Indica si esta es la respuesta correcta." }
+                                id: { type: "NUMBER" },
+                                respuesta: { type: "STRING" },
+                                correcta: { type: "BOOLEAN" }
                             },
                             required: ["id", "respuesta", "correcta"]
                         }
@@ -48,7 +45,6 @@ export default async function handler(req, res) {
 
   try {
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -57,6 +53,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorData = await response.json();
+      console.error('Error de la API de Gemini:', errorData);
       throw new Error(errorData.error.message || `Error de la API: ${response.statusText}`);
     }
 
@@ -64,6 +61,7 @@ export default async function handler(req, res) {
     res.status(200).json(result);
 
   } catch (error) {
+    console.error('Error en la función serverless:', error);
     res.status(500).json({ error: error.message });
   }
 }
