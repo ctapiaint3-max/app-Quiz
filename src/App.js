@@ -67,35 +67,34 @@ const QuizGenerator = () => {
         };
         
         try {
-            const apiKey = ""; // Dejar vacío, será manejado por el entorno
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-            
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+  // La URL ahora apunta a TU propia función serverless
+  const response = await fetch('/api/generate-quiz', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sourceText, numQuestions }) // Solo enviamos lo necesario
+  });
 
-            if (!response.ok) {
-                throw new Error(`Error de la API: ${response.statusText}`);
-            }
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Error desconocido del servidor');
+  }
 
-            const result = await response.json();
-            
-            if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
-                const jsonText = result.candidates[0].content.parts[0].text;
-                const parsedJson = JSON.parse(jsonText);
-                setGeneratedJson(JSON.stringify(parsedJson, null, 2));
-            } else {
-                throw new Error("La respuesta de la API no tuvo el formato esperado.");
-            }
+  const result = await response.json();
 
-        } catch (err) {
-            setError(`No se pudo generar el cuestionario: ${err.message}`);
-            console.error(err);
-        } finally {
-            setIsLoading(false);
-        }
+  if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+      const jsonText = result.candidates[0].content.parts[0].text;
+      const parsedJson = JSON.parse(jsonText);
+      setGeneratedJson(JSON.stringify(parsedJson, null, 2));
+  } else {
+      throw new Error("La respuesta de la API no tuvo el formato esperado.");
+  }
+
+} catch (err) {
+    setError(`No se pudo generar el cuestionario: ${err.message}`);
+    console.error(err);
+} finally {
+    setIsLoading(false);
+}
     };
 
     const handleCopyToClipboard = () => {

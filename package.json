@@ -2,7 +2,6 @@
   "name": "mi-quiz-app",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://ctapiaint3-max.github.io/app-Quiz",
   "dependencies": {
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.7.0",
