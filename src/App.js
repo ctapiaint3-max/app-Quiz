@@ -23,6 +23,7 @@ const QuizGenerator = () => {
     const [isLoading, setIsLoading] = React.useState(false);
     const [error, setError] = React.useState('');
     const [copySuccess, setCopySuccess] = React.useState('');
+    const [isDragging, setIsDragging] = React.useState(false);
 
     // Carga las librerías para leer archivos cuando el componente se monta
     React.useEffect(() => {
@@ -51,8 +52,7 @@ const QuizGenerator = () => {
         loadScript(mammothScriptUrl).catch(err => console.error(err));
     }, []);
 
-    const handleFileChange = async (event) => {
-        const file = event.target.files[0];
+    const processFile = async (file) => {
         if (!file) return;
 
         setFileProcessing(true);
@@ -65,7 +65,6 @@ const QuizGenerator = () => {
             if (file.type === 'text/plain') {
                 const text = await file.text();
                 setSourceText(text);
-                setFileProcessing(false);
             } else if (file.type === 'application/pdf') {
                 if (!window.pdfjsLib) throw new Error('La librería PDF.js no se ha cargado. Intenta de nuevo.');
                 const reader = new FileReader();
@@ -87,6 +86,7 @@ const QuizGenerator = () => {
                     }
                 };
                 reader.readAsArrayBuffer(file);
+                return; // FileReader is async, so we return here
             } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
                 if (!window.mammoth) throw new Error('La librería Mammoth.js no se ha cargado. Intenta de nuevo.');
                 const reader = new FileReader();
@@ -102,14 +102,40 @@ const QuizGenerator = () => {
                     }
                 };
                 reader.readAsArrayBuffer(file);
+                return; // FileReader is async
             } else {
                 throw new Error('Formato de archivo no soportado. Sube .txt, .pdf o .docx');
             }
         } catch (err) {
             setError(err.message);
             setFileName('');
-            setFileProcessing(false);
         }
+        setFileProcessing(false);
+    };
+
+    const handleFileChange = (event) => {
+        const file = event.target.files[0];
+        processFile(file);
+    };
+
+    const handleDragOver = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragging(false);
+        const file = event.dataTransfer.files[0];
+        processFile(file);
     };
 
     const handleGenerateQuiz = async () => {
@@ -217,11 +243,11 @@ const QuizGenerator = () => {
                 <p className="text-gray-400 mt-2">Sube un archivo (.pdf, .docx, .txt) para generar un cuestionario.</p>
             </div>
             <div className="space-y-6">
-                <div>
-                    <label htmlFor="file-upload-ai" className="block text-lg font-medium text-gray-300 mb-2">1. Sube tu archivo:</label>
-                    <label htmlFor="file-upload-ai" className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white py-4 px-6 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-500 transition-colors">
+                <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+                    <label htmlFor="file-upload-ai" className="block text-lg font-medium text-gray-300 mb-2">1. Sube o arrastra tu archivo:</label>
+                    <label htmlFor="file-upload-ai" className={`cursor-pointer bg-gray-700 hover:bg-gray-600 text-white py-4 px-6 rounded-lg flex items-center justify-center border-2 border-dashed transition-colors ${isDragging ? 'border-blue-500 bg-gray-600' : 'border-gray-500'}`}>
                         <Upload className="mr-3 h-6 w-6" />
-                        <span>{fileName || 'Seleccionar archivo (.pdf, .docx, .txt)'}</span>
+                        <span>{fileName || 'Seleccionar o arrastrar archivo (.pdf, .docx, .txt)'}</span>
                     </label>
                     <input id="file-upload-ai" type="file" accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleFileChange} className="hidden" />
                     {fileProcessing && <p className="text-blue-400 mt-2 text-center animate-pulse">Procesando archivo, por favor espera...</p>}
