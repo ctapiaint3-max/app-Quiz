@@ -17,14 +17,104 @@ const shuffleArray = (array) => {
 const QuizGenerator = () => {
     const [sourceText, setSourceText] = React.useState('');
     const [numQuestions, setNumQuestions] = React.useState(5);
+    const [fileName, setFileName] = React.useState('');
+    const [fileProcessing, setFileProcessing] = React.useState(false);
     const [generatedJson, setGeneratedJson] = React.useState('');
     const [isLoading, setIsLoading] = React.useState(false);
     const [error, setError] = React.useState('');
     const [copySuccess, setCopySuccess] = React.useState('');
 
+    // Carga las librerías para leer archivos cuando el componente se monta
+    React.useEffect(() => {
+        const pdfjsScriptUrl = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js";
+        const mammothScriptUrl = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.18/mammoth.browser.min.js";
+        
+        const loadScript = (src) => {
+            return new Promise((resolve, reject) => {
+                if (document.querySelector(`script[src="${src}"]`)) {
+                    resolve();
+                    return;
+                }
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error(`Script load error for ${src}`));
+                document.body.appendChild(script);
+            });
+        };
+
+        loadScript(pdfjsScriptUrl)
+            .then(() => {
+                window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js`;
+            })
+            .catch(err => console.error(err));
+        loadScript(mammothScriptUrl).catch(err => console.error(err));
+    }, []);
+
+    const handleFileChange = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        setFileProcessing(true);
+        setError('');
+        setSourceText('');
+        setFileName(file.name);
+        setGeneratedJson('');
+
+        try {
+            if (file.type === 'text/plain') {
+                const text = await file.text();
+                setSourceText(text);
+                setFileProcessing(false);
+            } else if (file.type === 'application/pdf') {
+                if (!window.pdfjsLib) throw new Error('La librería PDF.js no se ha cargado. Intenta de nuevo.');
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const typedarray = new Uint8Array(e.target.result);
+                        const pdf = await window.pdfjsLib.getDocument(typedarray).promise;
+                        let fullText = '';
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const textContent = await page.getTextContent();
+                            fullText += textContent.items.map(item => item.str).join(' ') + '\n';
+                        }
+                        setSourceText(fullText);
+                    } catch (err) {
+                        setError(`Error al procesar PDF: ${err.message}`);
+                    } finally {
+                        setFileProcessing(false);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                if (!window.mammoth) throw new Error('La librería Mammoth.js no se ha cargado. Intenta de nuevo.');
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const arrayBuffer = e.target.result;
+                        const result = await window.mammoth.extractRawText({ arrayBuffer });
+                        setSourceText(result.value);
+                    } catch (err) {
+                        setError(`Error al procesar DOCX: ${err.message}`);
+                    } finally {
+                        setFileProcessing(false);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                throw new Error('Formato de archivo no soportado. Sube .txt, .pdf o .docx');
+            }
+        } catch (err) {
+            setError(err.message);
+            setFileName('');
+            setFileProcessing(false);
+        }
+    };
+
     const handleGenerateQuiz = async () => {
         if (!sourceText.trim()) {
-            setError('Por favor, pega el texto del cual generar el cuestionario.');
+            setError('Por favor, sube y procesa un archivo antes de generar el cuestionario.');
             return;
         }
         setIsLoading(true);
@@ -43,18 +133,17 @@ const QuizGenerator = () => {
                     items: {
                         type: "OBJECT",
                         properties: {
-                            id: { type: "NUMBER", description: "Identificador numérico único para la pregunta." },
-                            pregunta: { type: "STRING", description: "El texto de la pregunta." },
-                            tema: { type: "STRING", description: "El tema principal de la pregunta." },
+                            id: { type: "NUMBER" },
+                            pregunta: { type: "STRING" },
+                            tema: { type: "STRING" },
                             respuestas: {
                                 type: "ARRAY",
-                                description: "Una lista de posibles respuestas.",
                                 items: {
                                     type: "OBJECT",
                                     properties: {
-                                        id: { type: "NUMBER", description: "Identificador numérico único para la respuesta." },
-                                        respuesta: { type: "STRING", description: "El texto de la respuesta." },
-                                        correcta: { type: "BOOLEAN", description: "Indica si esta es la respuesta correcta." }
+                                        id: { type: "NUMBER" },
+                                        respuesta: { type: "STRING" },
+                                        correcta: { type: "BOOLEAN" }
                                     },
                                     required: ["id", "respuesta", "correcta"]
                                 }
@@ -66,38 +155,29 @@ const QuizGenerator = () => {
             }
         };
         
-// Dentro de la función handleGenerateQuiz en tu componente de React
-
-try {
-  // La URL ahora apunta a TU propia función serverless
-  const response = await fetch('/api/generate-quiz', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sourceText, numQuestions }) // Solo enviamos lo necesario
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Error desconocido del servidor');
-  }
-
-  const result = await response.json();
-
-  if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
-      const jsonText = result.candidates[0].content.parts[0].text;
-      const parsedJson = JSON.parse(jsonText);
-      setGeneratedJson(JSON.stringify(parsedJson, null, 2));
-  } else {
-      throw new Error("La respuesta de la API no tuvo el formato esperado.");
-  }
-
-} catch (err) {
-    setError(`No se pudo generar el cuestionario: ${err.message}`);
-    console.error(err);
-} finally {
-    setIsLoading(false);
-}
-
+        try {
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error(`Error de la API: ${response.statusText}`);
+            const result = await response.json();
+            if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                const jsonText = result.candidates[0].content.parts[0].text;
+                const parsedJson = JSON.parse(jsonText);
+                setGeneratedJson(JSON.stringify(parsedJson, null, 2));
+            } else {
+                throw new Error("La respuesta de la API no tuvo el formato esperado.");
+            }
+        } catch (err) {
+            setError(`No se pudo generar el cuestionario: ${err.message}`);
+            console.error(err);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleCopyToClipboard = () => {
@@ -134,18 +214,23 @@ try {
             <div className="text-center mb-8">
                 <Bot className="mx-auto h-16 w-16 text-blue-400 mb-4" />
                 <h1 className="text-4xl font-bold text-white">Crear Quiz con IA</h1>
-                <p className="text-gray-400 mt-2">Pega texto de un PDF y genera un cuestionario al instante.</p>
+                <p className="text-gray-400 mt-2">Sube un archivo (.pdf, .docx, .txt) para generar un cuestionario.</p>
             </div>
             <div className="space-y-6">
                 <div>
-                    <label htmlFor="source-text" className="block text-lg font-medium text-gray-300 mb-2">1. Pega aquí el texto de tu PDF:</label>
-                    <textarea id="source-text" rows="10" className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Copia y pega el contenido de tu documento aquí..." value={sourceText} onChange={(e) => setSourceText(e.target.value)}></textarea>
+                    <label htmlFor="file-upload-ai" className="block text-lg font-medium text-gray-300 mb-2">1. Sube tu archivo:</label>
+                    <label htmlFor="file-upload-ai" className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white py-4 px-6 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-500 transition-colors">
+                        <Upload className="mr-3 h-6 w-6" />
+                        <span>{fileName || 'Seleccionar archivo (.pdf, .docx, .txt)'}</span>
+                    </label>
+                    <input id="file-upload-ai" type="file" accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleFileChange} className="hidden" />
+                    {fileProcessing && <p className="text-blue-400 mt-2 text-center animate-pulse">Procesando archivo, por favor espera...</p>}
                 </div>
                 <div>
                     <label htmlFor="num-questions" className="block text-lg font-medium text-gray-300 mb-2">2. ¿Cuántas preguntas quieres generar?</label>
                     <input type="number" id="num-questions" min="1" max="50" className="w-40 p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" value={numQuestions} onChange={(e) => setNumQuestions(parseInt(e.target.value, 10))} />
                 </div>
-                <button onClick={handleGenerateQuiz} disabled={isLoading} className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-500 text-white font-bold py-4 rounded-lg text-lg flex items-center justify-center transition-all transform hover:scale-105">
+                <button onClick={handleGenerateQuiz} disabled={isLoading || fileProcessing || !sourceText} className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-4 rounded-lg text-lg flex items-center justify-center transition-all transform hover:scale-105">
                     {isLoading ? (<div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>) : (<><Bot className="mr-3" />Generar Cuestionario</>)}
                 </button>
                 {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-lg text-center">{error}</div>}
