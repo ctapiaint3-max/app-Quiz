@@ -66,7 +66,9 @@ const QuizGenerator = () => {
             }
         };
         
-        try {
+// Dentro de la función handleGenerateQuiz en tu componente de React
+
+try {
   // La URL ahora apunta a TU propia función serverless
   const response = await fetch('/api/generate-quiz', {
     method: 'POST',
@@ -95,6 +97,7 @@ const QuizGenerator = () => {
 } finally {
     setIsLoading(false);
 }
+
     };
 
     const handleCopyToClipboard = () => {

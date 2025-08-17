@@ -12,9 +12,39 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'API key no configurada en el servidor.' });
   }
 
-  const prompt = `Basado en el siguiente texto, genera ${numQuestions} preguntas de opción múltiple. Cada pregunta debe tener 4 respuestas, donde solo una es correcta. Identifica y asigna un tema relevante a cada pregunta basándote en el contenido. Formatea la salida completa como un único array de objetos JSON que se ajuste estrictamente al esquema proporcionado. El texto es: \n\n"${sourceText}"`;
+  const prompt = `Basado en el siguiente texto, genera ${numQuestions} preguntas de opción múltiple. Cada pregunta debe tener entre 2 y 4 respuestas, donde solo una es correcta. Identifica y asigna un tema relevante a cada pregunta basándote en el contenido. Formatea la salida completa como un único array de objetos JSON que se ajuste estrictamente al esquema proporcionado. El texto es: \n\n"${sourceText}"`;
 
-  const payload = { /* ... (El mismo payload de tu App.js) ... */ };
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+            type: "ARRAY",
+            items: {
+                type: "OBJECT",
+                properties: {
+                    id: { type: "NUMBER", description: "Identificador numérico único para la pregunta." },
+                    pregunta: { type: "STRING", description: "El texto de la pregunta." },
+                    tema: { type: "STRING", description: "El tema principal de la pregunta." },
+                    respuestas: {
+                        type: "ARRAY",
+                        description: "Una lista de posibles respuestas.",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                id: { type: "NUMBER", description: "Identificador numérico único para la respuesta." },
+                                respuesta: { type: "STRING", description: "El texto de la respuesta." },
+                                correcta: { type: "BOOLEAN", description: "Indica si esta es la respuesta correcta." }
+                            },
+                            required: ["id", "respuesta", "correcta"]
+                        }
+                    }
+                },
+                required: ["id", "pregunta", "tema", "respuestas"]
+            }
+        }
+    }
+  };
 
   try {
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
