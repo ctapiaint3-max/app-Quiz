@@ -1,26 +1,173 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Upload, FileText, Clock, CheckCircle, XCircle, BarChart2, Repeat, Shuffle } from 'lucide-react';
+import { Upload, FileText, Clock, CheckCircle, XCircle, BarChart2, Repeat, Shuffle, Bot, Clipboard, Download, BookOpen, Pencil } from 'lucide-react';
 
 // --- Función para barajar un array (Algoritmo Fisher-Yates) ---
 const shuffleArray = (array) => {
     let currentIndex = array.length, randomIndex;
-    // Mientras queden elementos a barajar.
     while (currentIndex !== 0) {
-        // Elige un elemento restante.
         randomIndex = Math.floor(Math.random() * currentIndex);
         currentIndex--;
-        // Y cámbialo por el elemento actual.
         [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
     }
     return array;
 };
 
-// --- Componente Principal App ---
-export default function App() {
+// --- Componente para la Pestaña de Creación de Quiz con IA ---
+const QuizGenerator = () => {
+    const [sourceText, setSourceText] = React.useState('');
+    const [numQuestions, setNumQuestions] = React.useState(5);
+    const [generatedJson, setGeneratedJson] = React.useState('');
+    const [isLoading, setIsLoading] = React.useState(false);
+    const [error, setError] = React.useState('');
+    const [copySuccess, setCopySuccess] = React.useState('');
 
-    // --- ESTADO PRINCIPAL DE LA APP ---
-    const [appState, setAppState] = React.useState('setup'); // 'setup', 'quiz', 'results'
+    const handleGenerateQuiz = async () => {
+        if (!sourceText.trim()) {
+            setError('Por favor, pega el texto del cual generar el cuestionario.');
+            return;
+        }
+        setIsLoading(true);
+        setError('');
+        setGeneratedJson('');
+        setCopySuccess('');
+
+        const prompt = `Basado en el siguiente texto, genera ${numQuestions} preguntas de opción múltiple. Cada pregunta debe tener entre 2 y 4 respuestas, donde solo una es correcta. Identifica y asigna un tema relevante a cada pregunta basándote en el contenido. Formatea la salida completa como un único array de objetos JSON que se ajuste estrictamente al esquema proporcionado. El texto es: \n\n"${sourceText}"`;
+
+        const payload = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            id: { type: "NUMBER", description: "Identificador numérico único para la pregunta." },
+                            pregunta: { type: "STRING", description: "El texto de la pregunta." },
+                            tema: { type: "STRING", description: "El tema principal de la pregunta." },
+                            respuestas: {
+                                type: "ARRAY",
+                                description: "Una lista de posibles respuestas.",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        id: { type: "NUMBER", description: "Identificador numérico único para la respuesta." },
+                                        respuesta: { type: "STRING", description: "El texto de la respuesta." },
+                                        correcta: { type: "BOOLEAN", description: "Indica si esta es la respuesta correcta." }
+                                    },
+                                    required: ["id", "respuesta", "correcta"]
+                                }
+                            }
+                        },
+                        required: ["id", "pregunta", "tema", "respuestas"]
+                    }
+                }
+            }
+        };
+        
+        try {
+            const apiKey = ""; // Dejar vacío, será manejado por el entorno
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Error de la API: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                const jsonText = result.candidates[0].content.parts[0].text;
+                const parsedJson = JSON.parse(jsonText);
+                setGeneratedJson(JSON.stringify(parsedJson, null, 2));
+            } else {
+                throw new Error("La respuesta de la API no tuvo el formato esperado.");
+            }
+
+        } catch (err) {
+            setError(`No se pudo generar el cuestionario: ${err.message}`);
+            console.error(err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleCopyToClipboard = () => {
+        if (!generatedJson) return;
+        const textArea = document.createElement('textarea');
+        textArea.value = generatedJson;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            setCopySuccess('¡Copiado al portapapeles!');
+            setTimeout(() => setCopySuccess(''), 2000);
+        } catch (err) {
+            setCopySuccess('Error al copiar.');
+        }
+        document.body.removeChild(textArea);
+    };
+
+    const handleDownloadJson = () => {
+        if (!generatedJson) return;
+        const blob = new Blob([generatedJson], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'cuestionario-generado.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    return (
+        <div className="w-full max-w-4xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700">
+            <div className="text-center mb-8">
+                <Bot className="mx-auto h-16 w-16 text-blue-400 mb-4" />
+                <h1 className="text-4xl font-bold text-white">Crear Quiz con IA</h1>
+                <p className="text-gray-400 mt-2">Pega texto de un PDF y genera un cuestionario al instante.</p>
+            </div>
+            <div className="space-y-6">
+                <div>
+                    <label htmlFor="source-text" className="block text-lg font-medium text-gray-300 mb-2">1. Pega aquí el texto de tu PDF:</label>
+                    <textarea id="source-text" rows="10" className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Copia y pega el contenido de tu documento aquí..." value={sourceText} onChange={(e) => setSourceText(e.target.value)}></textarea>
+                </div>
+                <div>
+                    <label htmlFor="num-questions" className="block text-lg font-medium text-gray-300 mb-2">2. ¿Cuántas preguntas quieres generar?</label>
+                    <input type="number" id="num-questions" min="1" max="50" className="w-40 p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" value={numQuestions} onChange={(e) => setNumQuestions(parseInt(e.target.value, 10))} />
+                </div>
+                <button onClick={handleGenerateQuiz} disabled={isLoading} className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-500 text-white font-bold py-4 rounded-lg text-lg flex items-center justify-center transition-all transform hover:scale-105">
+                    {isLoading ? (<div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>) : (<><Bot className="mr-3" />Generar Cuestionario</>)}
+                </button>
+                {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-lg text-center">{error}</div>}
+                {generatedJson && (
+                    <div className="mt-8">
+                        <h3 className="text-2xl font-bold text-white mb-4">JSON Generado:</h3>
+                        <div className="relative">
+                            <pre className="bg-gray-900 text-white p-4 rounded-lg max-h-96 overflow-y-auto"><code>{generatedJson}</code></pre>
+                            <div className="absolute top-2 right-2 flex space-x-2">
+                                <button onClick={handleCopyToClipboard} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg" title="Copiar al portapapeles"><Clipboard className="h-5 w-5 text-gray-300" /></button>
+                                <button onClick={handleDownloadJson} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg" title="Descargar JSON"><Download className="h-5 w-5 text-gray-300" /></button>
+                            </div>
+                        </div>
+                        {copySuccess && <p className="text-green-400 mt-2 text-center">{copySuccess}</p>}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- Componente para la Pestaña de Tomar Quiz ---
+const QuizTaker = () => {
+    const [appState, setAppState] = React.useState('setup');
     const [quizData, setQuizData] = React.useState(null);
     const [shuffledQuestions, setShuffledQuestions] = React.useState([]);
     const [currentQuestionIndex, setCurrentQuestionIndex] = React.useState(0);
@@ -30,22 +177,16 @@ export default function App() {
     const [error, setError] = React.useState('');
     const [fileName, setFileName] = React.useState('');
 
-    // --- LÓGICA PRINCIPAL DE LA APP ---
-
     const finishQuiz = React.useCallback(() => {
         if (!quizData) return;
-
         const topicResults = {};
         let totalCorrect = 0;
-
-        // 1. Agrupar resultados por tema
         shuffledQuestions.forEach((q, index) => {
             const theme = q.theme || 'General';
             if (!topicResults[theme]) {
                 topicResults[theme] = { correctas: 0, incorrectas: 0, total: 0 };
             }
             topicResults[theme].total++;
-
             if (userAnswers[index] === q.answer) {
                 topicResults[theme].correctas++;
                 totalCorrect++;
@@ -53,40 +194,12 @@ export default function App() {
                 topicResults[theme].incorrectas++;
             }
         });
-
-        // 2. Preparar datos para el gráfico
-        const chartData = Object.keys(topicResults).map(theme => ({
-            name: theme,
-            correctas: topicResults[theme].correctas,
-            incorrectas: topicResults[theme].incorrectas,
-        }));
-        
+        const chartData = Object.keys(topicResults).map(theme => ({ name: theme, correctas: topicResults[theme].correctas, incorrectas: topicResults[theme].incorrectas }));
         const totalQuestions = shuffledQuestions.length;
         const totalIncorrect = totalQuestions - totalCorrect;
-        
-        // 3. Calcular calificación en escala de 1-10
         const score10 = totalQuestions > 0 ? (totalCorrect / totalQuestions) * 10 : 0;
-
-        // 4. Recopilar preguntas incorrectas
-        const incorrectQuestions = shuffledQuestions
-            .map((q, index) => ({ ...q, originalIndex: index }))
-            .filter(q => userAnswers[q.originalIndex] !== q.answer)
-            .map(q => ({
-                question: q.question,
-                yourAnswer: userAnswers[q.originalIndex] || "No respondida",
-                correctAnswer: q.answer,
-                theme: q.theme
-            }));
-
-        setResults({
-            score: score10.toFixed(1),
-            correct: totalCorrect,
-            incorrect: totalIncorrect,
-            total: totalQuestions,
-            incorrectQuestions,
-            chartData
-        });
-        
+        const incorrectQuestions = shuffledQuestions.map((q, index) => ({ ...q, originalIndex: index })).filter(q => userAnswers[q.originalIndex] !== q.answer).map(q => ({ question: q.question, yourAnswer: userAnswers[q.originalIndex] || "No respondida", correctAnswer: q.answer, theme: q.theme }));
+        setResults({ score: score10.toFixed(1), correct: totalCorrect, incorrect: totalIncorrect, total: totalQuestions, incorrectQuestions, chartData });
         setAppState('results');
     }, [quizData, userAnswers, shuffledQuestions]);
 
@@ -105,20 +218,13 @@ export default function App() {
                 try {
                     const loadedJson = JSON.parse(e.target.result);
                     if (!Array.isArray(loadedJson) || loadedJson.length === 0) throw new Error("El JSON debe ser un array de preguntas.");
-                    
                     const transformedQuestions = loadedJson.map(q => {
                         const correctAnswerObj = q.respuestas.find(r => r.correcta === true);
                         if (!q.pregunta || !Array.isArray(q.respuestas) || !correctAnswerObj || !q.tema) {
                             throw new Error("Cada pregunta debe tener 'pregunta', 'respuestas', 'tema' y una respuesta correcta.");
                         }
-                        return {
-                            question: q.pregunta,
-                            options: q.respuestas.map(r => r.respuesta),
-                            answer: correctAnswerObj.respuesta,
-                            theme: q.tema // Guardamos el tema
-                        };
+                        return { question: q.pregunta, options: q.respuestas.map(r => r.respuesta), answer: correctAnswerObj.respuesta, theme: q.tema };
                     });
-
                     setQuizData({ title: file.name.replace('.json', ''), questions: transformedQuestions });
                     setError('');
                     setFileName(file.name);
@@ -136,7 +242,6 @@ export default function App() {
 
     const startQuiz = () => {
         if (quizData) {
-            // Barajar las preguntas antes de empezar
             setShuffledQuestions(shuffleArray([...quizData.questions]));
             setTimeLeft(quizData.questions.length * 30);
             setCurrentQuestionIndex(0);
@@ -165,8 +270,6 @@ export default function App() {
         setAppState('setup');
     };
 
-    // --- Componentes de la Interfaz ---
-
     const QuizSetup = () => (
         <div className="w-full max-w-2xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700">
             <div className="text-center mb-8">
@@ -192,29 +295,15 @@ export default function App() {
         const currentQuestion = shuffledQuestions[currentQuestionIndex];
         const progress = ((currentQuestionIndex + 1) / shuffledQuestions.length) * 100;
         const isAnswerSelected = userAnswers[currentQuestionIndex] !== undefined;
-
         return (
             <div className="w-full max-w-4xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 text-white">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold">{quizData.title}</h2>
-                    <div className="flex items-center bg-gray-700 px-4 py-2 rounded-lg">
-                        <Clock className="h-6 w-6 mr-2 text-blue-400" />
-                        <span className="text-xl font-mono">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</span>
-                    </div>
+                    <div className="flex items-center bg-gray-700 px-4 py-2 rounded-lg"><Clock className="h-6 w-6 mr-2 text-blue-400" /><span className="text-xl font-mono">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</span></div>
                 </div>
                 <div className="w-full bg-gray-700 rounded-full h-2.5 mb-6"><div className="bg-blue-500 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div></div>
-                <div className="bg-gray-900 p-6 rounded-lg mb-6">
-                    <p className="text-blue-400 font-semibold mb-2">Tema: {currentQuestion.theme}</p>
-                    <h3 className="text-2xl font-semibold mb-2">Pregunta {currentQuestionIndex + 1} de {shuffledQuestions.length}</h3>
-                    <p className="text-xl">{currentQuestion.question}</p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {currentQuestion.options.map((option, index) => (
-                        <button key={index} onClick={() => handleAnswerSelect(currentQuestionIndex, option)} className={`p-4 rounded-lg text-left text-lg border-2 transition-all ${userAnswers[currentQuestionIndex] === option ? 'bg-blue-500 border-blue-400 scale-105' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}>
-                            {option}
-                        </button>
-                    ))}
-                </div>
+                <div className="bg-gray-900 p-6 rounded-lg mb-6"><p className="text-blue-400 font-semibold mb-2">Tema: {currentQuestion.theme}</p><h3 className="text-2xl font-semibold mb-2">Pregunta {currentQuestionIndex + 1} de {shuffledQuestions.length}</h3><p className="text-xl">{currentQuestion.question}</p></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{currentQuestion.options.map((option, index) => (<button key={index} onClick={() => handleAnswerSelect(currentQuestionIndex, option)} className={`p-4 rounded-lg text-left text-lg border-2 transition-all ${userAnswers[currentQuestionIndex] === option ? 'bg-blue-500 border-blue-400 scale-105' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}>{option}</button>))}</div>
                 <div className="mt-8 text-right">
                     <button onClick={handleNextQuestion} disabled={!isAnswerSelected} className="bg-green-600 hover:bg-green-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-lg text-lg transition-transform transform hover:scale-105">
                         {currentQuestionIndex < shuffledQuestions.length - 1 ? 'Siguiente' : 'Finalizar'}
@@ -274,25 +363,36 @@ export default function App() {
         </div>
     );
 
-    // --- RENDERIZADO CONDICIONAL ---
-    
     const renderContent = () => {
         switch (appState) {
-            case 'setup': 
-                return <QuizSetup />;
-            case 'quiz': 
-                return <QuizScreen />;
-            case 'results': 
-                return <ResultsScreen />;
-            default: 
-                return <QuizSetup />;
+            case 'setup': return <QuizSetup />;
+            case 'quiz': return <QuizScreen />;
+            case 'results': return <ResultsScreen />;
+            default: return <QuizSetup />;
         }
     };
     
+    return renderContent();
+};
+
+// --- Componente Principal con Navegación por Pestañas ---
+export default function App() {
+    const [activeTab, setActiveTab] = React.useState('create'); // 'create' o 'take'
+
     return (
-        <main className="bg-gray-900 min-h-screen w-full flex items-center justify-center font-sans p-4">
-            <div className="w-full">
-                {renderContent()}
+        <main className="bg-gray-900 min-h-screen w-full flex flex-col items-center font-sans p-4">
+            <div className="w-full max-w-5xl">
+                <div className="mb-8 flex justify-center border-b border-gray-700">
+                    <button onClick={() => setActiveTab('create')} className={`flex items-center px-6 py-3 text-lg font-semibold transition-colors ${activeTab === 'create' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}>
+                        <Pencil className="mr-2 h-5 w-5" /> Crear Quiz (IA)
+                    </button>
+                    <button onClick={() => setActiveTab('take')} className={`flex items-center px-6 py-3 text-lg font-semibold transition-colors ${activeTab === 'take' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}>
+                        <BookOpen className="mr-2 h-5 w-5" /> Tomar Quiz
+                    </button>
+                </div>
+                <div className="w-full">
+                    {activeTab === 'create' ? <QuizGenerator /> : <QuizTaker />}
+                </div>
             </div>
         </main>
     );
