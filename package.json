@@ -1,3 +1,4 @@
+"homepage": "https://github.com/ctapiaint3-max/app-Quiz.git",
 {
   "name": "mi-quiz-app",
   "version": "0.1.0",
@@ -19,6 +20,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
+    "deploy": "gh-pages -d build",
   },
   "eslintConfig": {
     "extends": [
@@ -37,5 +39,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0"
   }
 }
