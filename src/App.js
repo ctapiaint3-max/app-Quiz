@@ -1,3 +1,76 @@
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Método no permitido' });
+  }
+
+  const { sourceText, numQuestions } = req.body;
+  // Lee la clave API de forma segura desde las variables de entorno de Vercel
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    return res.status(500).json({ error: 'La clave API de Gemini no está configurada en el servidor.' });
+  }
+
+  const prompt = `Tu tarea es generar un cuestionario a partir del texto de un libro. Primero, analiza el texto para identificar el índice o tabla de contenidos. Basándote en ese índice, ignora por completo cualquier sección preliminar como "Introducción", "Prólogo", "Prefacio", "Portada", "Agradecimientos" o "Acerca de los autores". Enfócate únicamente en los capítulos o unidades que contienen el material principal. A partir de ese material principal, genera ${numQuestions} preguntas de opción múltiple. Cada pregunta debe tener 4 respuestas, donde solo una es correcta. Identifica y asigna un tema relevante a cada pregunta basándote en el contenido. Formatea la salida completa como un único array de objetos JSON que se ajuste estrictamente al esquema proporcionado. El texto es: \n\n"${sourceText}"`;
+
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+            type: "ARRAY",
+            items: {
+                type: "OBJECT",
+                properties: {
+                    id: { type: "NUMBER" },
+                    pregunta: { type: "STRING" },
+                    tema: { type: "STRING" },
+                    respuestas: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                id: { type: "NUMBER" },
+                                respuesta: { type: "STRING" },
+                                correcta: { type: "BOOLEAN" }
+                            },
+                            required: ["id", "respuesta", "correcta"]
+                        }
+                    }
+                },
+                required: ["id", "pregunta", "tema", "respuestas"]
+            }
+        }
+    }
+  };
+
+  try {
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Error de la API de Gemini:', errorData);
+      throw new Error(errorData.error.message || `Error de la API: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    res.status(200).json(result);
+
+  } catch (error) {
+    console.error('Error en la función serverless:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+
+// --- 2. CÓDIGO PARA: src/App.js ---
+// Reemplaza el contenido de tu archivo App.js con este código.
+
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Upload, FileText, Clock, CheckCircle, XCircle, BarChart2, Repeat, Shuffle, Bot, Clipboard, Download, BookOpen, Pencil } from 'lucide-react';
@@ -225,6 +298,7 @@ const QuizTaker = () => {
     const [results, setResults] = React.useState(null);
     const [error, setError] = React.useState('');
     const [fileName, setFileName] = React.useState('');
+    const [isDragging, setIsDragging] = React.useState(false);
 
     const finishQuiz = React.useCallback(() => {
         if (!quizData) return;
@@ -259,8 +333,7 @@ const QuizTaker = () => {
         return () => clearInterval(timerId);
     }, [appState, timeLeft, finishQuiz]);
 
-    const handleFileUpload = (event) => {
-        const file = event.target.files[0];
+    const processQuizFile = (file) => {
         if (file && file.type === "application/json") {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -287,6 +360,15 @@ const QuizTaker = () => {
         } else {
             setError("Por favor, sube un archivo .json");
         }
+    };
+
+    const handleFileChange = (event) => processQuizFile(event.target.files[0]);
+    const handleDragOver = (event) => { event.preventDefault(); setIsDragging(true); };
+    const handleDragLeave = (event) => { event.preventDefault(); setIsDragging(false); };
+    const handleDrop = (event) => {
+        event.preventDefault();
+        setIsDragging(false);
+        processQuizFile(event.dataTransfer.files[0]);
     };
 
     const startQuiz = () => {
@@ -320,19 +402,19 @@ const QuizTaker = () => {
     };
 
     const QuizSetup = () => (
-        <div className="w-full max-w-2xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700">
+        <div className="w-full max-w-2xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
             <div className="text-center mb-8">
                 <FileText className="mx-auto h-16 w-16 text-blue-400 mb-4" />
                 <h1 className="text-4xl font-bold text-white">Prepara tu Quiz</h1>
-                <p className="text-gray-400 mt-2">Sube tu archivo JSON para comenzar.</p>
+                <p className="text-gray-400 mt-2">Sube o arrastra tu archivo JSON para comenzar.</p>
             </div>
             {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-lg mb-6 text-center">{error}</div>}
             <div className="mb-6">
-                <label htmlFor="file-upload" className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white py-4 px-6 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-500 transition-colors">
+                <label htmlFor="file-upload" className={`cursor-pointer bg-gray-700 hover:bg-gray-600 text-white py-4 px-6 rounded-lg flex items-center justify-center border-2 border-dashed transition-colors ${isDragging ? 'border-blue-500 bg-gray-600' : 'border-gray-500'}`}>
                     <Upload className="mr-3 h-6 w-6" />
-                    <span>{fileName || 'Seleccionar archivo JSON'}</span>
+                    <span>{fileName || 'Seleccionar o arrastrar archivo JSON'}</span>
                 </label>
-                <input id="file-upload" type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
+                <input id="file-upload" type="file" accept=".json" onChange={handleFileChange} className="hidden" />
             </div>
             <button onClick={startQuiz} disabled={!fileName} className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-4 rounded-lg text-lg transition-all transform hover:scale-105">
                 <Shuffle className="inline mr-2" /> Comenzar Quiz al Azar
