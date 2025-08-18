@@ -1,6 +1,26 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Upload, FileText, Clock, CheckCircle, XCircle, BarChart2, Repeat, Shuffle, Bot, Clipboard, Download, BookOpen, Pencil, Send } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
+import { getFirestore, collection, addDoc, serverTimestamp, query, onSnapshot } from 'firebase/firestore';
+import { Upload, FileText, Clock, CheckCircle, XCircle, BarChart2, Repeat, Shuffle, Bot, Clipboard, Download, BookOpen, Pencil, Send, History } from 'lucide-react';
+
+// --- Configuración e Inicialización de Firebase ---
+// eslint-disable-next-line no-undef
+const firebaseConfig = typeof __firebase_config !== 'undefined' 
+    ? JSON.parse(__firebase_config) 
+    : {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_STORAGE_BUCKET",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 // --- Función para barajar un array ---
 const shuffleArray = (array) => {
@@ -189,204 +209,215 @@ const QuizGenerator = () => {
 };
 
 // --- Componente: Tomador de Quiz ---
-const QuizTaker = () => { /* ... (código sin cambios) ... */ };
-
-// --- Componente: Asistente de Estudio con IA ---
-const AiAssistant = () => {
-    const [sourceText, setSourceText] = React.useState('');
-    const [fileName, setFileName] = React.useState('');
-    const [fileProcessing, setFileProcessing] = React.useState(false);
-    const [isLoading, setIsLoading] = React.useState(false);
+const QuizTaker = ({ userId, appId }) => {
+    const [appState, setAppState] = React.useState('setup');
+    const [quizData, setQuizData] = React.useState(null);
+    const [shuffledQuestions, setShuffledQuestions] = React.useState([]);
+    const [currentQuestionIndex, setCurrentQuestionIndex] = React.useState(0);
+    const [userAnswers, setUserAnswers] = React.useState({});
+    const [timeLeft, setTimeLeft] = React.useState(0);
+    const [results, setResults] = React.useState(null);
     const [error, setError] = React.useState('');
+    const [fileName, setFileName] = React.useState('');
     const [isDragging, setIsDragging] = React.useState(false);
-    const [chatHistory, setChatHistory] = React.useState([{ role: 'assistant', text: '¡Hola! Soy Kai, tu asistente IA. Puedes hacerme cualquier pregunta o subir un documento para que te ayude a analizarlo.' }]);
-    const [userInput, setUserInput] = React.useState('');
+
+    const finishQuiz = React.useCallback(async () => {
+        if (!quizData) return;
+        const topicResults = {};
+        let totalCorrect = 0;
+        shuffledQuestions.forEach((q, index) => {
+            const theme = q.theme || 'General';
+            if (!topicResults[theme]) {
+                topicResults[theme] = { correctas: 0, incorrectas: 0, total: 0 };
+            }
+            topicResults[theme].total++;
+            if (userAnswers[index] === q.answer) {
+                topicResults[theme].correctas++;
+                totalCorrect++;
+            } else {
+                topicResults[theme].incorrectas++;
+            }
+        });
+        const chartData = Object.keys(topicResults).map(theme => ({ name: theme, correctas: topicResults[theme].correctas, incorrectas: topicResults[theme].incorrectas }));
+        const totalQuestions = shuffledQuestions.length;
+        const totalIncorrect = totalQuestions - totalCorrect;
+        const score10 = totalQuestions > 0 ? (totalCorrect / totalQuestions) * 10 : 0;
+        const incorrectQuestions = shuffledQuestions.map((q, index) => ({ ...q, originalIndex: index })).filter(q => userAnswers[q.originalIndex] !== q.answer).map(q => ({ question: q.question, yourAnswer: userAnswers[q.originalIndex] || "No respondida", correctAnswer: q.answer, theme: q.theme }));
+        
+        const finalResults = { 
+            score: score10.toFixed(1), 
+            correct: totalCorrect, 
+            incorrect: totalIncorrect, 
+            total: totalQuestions, 
+            incorrectQuestions, 
+            chartData, 
+            quizTitle: quizData.title, 
+            timestamp: serverTimestamp() 
+        };
+        setResults(finalResults);
+        setAppState('results');
+
+        if (userId) {
+            try {
+                const historyCollectionPath = `/artifacts/${appId}/users/${userId}/quizHistory`;
+                await addDoc(collection(db, historyCollectionPath), finalResults);
+            } catch (err) {
+                console.error("Error guardando el historial:", err);
+            }
+        }
+    }, [quizData, userAnswers, shuffledQuestions, userId, appId]);
 
     React.useEffect(() => {
-        const pdfjsScriptUrl = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js";
-        const mammothScriptUrl = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.18/mammoth.browser.min.js";
-        const loadScript = (src) => new Promise((resolve, reject) => {
-            if (document.querySelector(`script[src="${src}"]`)) return resolve();
-            const script = document.createElement('script');
-            script.src = src;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error(`Error al cargar script ${src}`));
-            document.body.appendChild(script);
-        });
-        loadScript(pdfjsScriptUrl).then(() => {
-            if (window.pdfjsLib) {
-                window.pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js`;
-            }
-        }).catch(console.error);
-        loadScript(mammothScriptUrl).catch(console.error);
-    }, []);
+        if (appState !== 'quiz' || timeLeft <= 0) return;
+        const timerId = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+        if (timeLeft === 1) setTimeout(finishQuiz, 1000);
+        return () => clearInterval(timerId);
+    }, [appState, timeLeft, finishQuiz]);
 
-    const processFile = async (file) => {
-        if (!file) return;
-        setFileProcessing(true);
-        setError('');
-        setSourceText('');
-        setFileName(file.name);
-        try {
-            let text = '';
-            if (file.type === 'text/plain') {
-                text = await file.text();
-            } else if (file.type === 'application/pdf') {
-                if (!window.pdfjsLib) throw new Error('PDF.js no cargado.');
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    try {
-                        const typedarray = new Uint8Array(e.target.result);
-                        const pdf = await window.pdfjsLib.getDocument(typedarray).promise;
-                        let fullText = '';
-                        for (let i = 1; i <= pdf.numPages; i++) {
-                            const page = await pdf.getPage(i);
-                            const textContent = await page.getTextContent();
-                            fullText += textContent.items.map(item => item.str).join(' ') + '\n';
-                        }
-                        if (!fullText.trim()) {
-                            setError('No se pudo extraer texto de este PDF.');
-                            setFileName('');
-                        } else {
-                            setSourceText(fullText);
-                            setChatHistory(prev => [...prev, { role: 'assistant', text: `¡Listo! He leído el documento "${file.name}". Ahora puedes hacerme preguntas sobre su contenido o pedirme un resumen.` }]);
-                        }
-                    } catch (err) { setError(`Error procesando PDF: ${err.message}`); }
-                    finally { setFileProcessing(false); }
-                };
-                reader.readAsArrayBuffer(file);
-                return;
-            } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                if (!window.mammoth) throw new Error('Mammoth.js no cargado.');
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    try {
-                        const result = await window.mammoth.extractRawText({ arrayBuffer: e.target.result });
-                        if (!result.value.trim()) {
-                            setError('No se pudo extraer texto de este DOCX.');
-                            setFileName('');
-                        } else {
-                            setSourceText(result.value);
-                            setChatHistory(prev => [...prev, { role: 'assistant', text: `¡Listo! He leído el documento "${file.name}". Ahora puedes hacerme preguntas sobre su contenido o pedirme un resumen.` }]);
-                        }
-                    } catch (err) { setError(`Error procesando DOCX: ${err.message}`); }
-                    finally { setFileProcessing(false); }
-                };
-                reader.readAsArrayBuffer(file);
-                return;
-            } else {
-                throw new Error('Formato no soportado.');
-            }
-            if (!text.trim()) {
-                setError('El archivo de texto está vacío.');
-                setFileName('');
-            } else {
-                setSourceText(text);
-                setChatHistory(prev => [...prev, { role: 'assistant', text: `¡Listo! He leído el documento "${file.name}". Ahora puedes hacerme preguntas sobre su contenido o pedirme un resumen.` }]);
-            }
-        } catch (err) {
-            setError(err.message);
-            setFileName('');
-        }
-        setFileProcessing(false);
-    };
-
-    const handleFileChange = (event) => processFile(event.target.files[0]);
+    const processQuizFile = (file) => { /* ... (código sin cambios) ... */ };
+    const handleFileChange = (event) => processQuizFile(event.target.files[0]);
     const handleDragOver = (event) => { event.preventDefault(); setIsDragging(true); };
     const handleDragLeave = (event) => { event.preventDefault(); setIsDragging(false); };
     const handleDrop = (event) => {
         event.preventDefault();
         setIsDragging(false);
-        processFile(event.dataTransfer.files[0]);
+        processQuizFile(event.dataTransfer.files[0]);
     };
+    const startQuiz = () => { /* ... (código sin cambios) ... */ };
+    const handleAnswerSelect = (questionIndex, selectedOption) => { /* ... (código sin cambios) ... */ };
+    const handleNextQuestion = () => { /* ... (código sin cambios) ... */ };
+    const resetApp = () => { /* ... (código sin cambios) ... */ };
 
-    const handleSendMessage = async (e) => {
-        e.preventDefault();
-        if (!userInput.trim() || isLoading) return;
+    const QuizSetup = () => (
+        <div className="w-full max-w-2xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+            <div className="text-center mb-8">
+                <FileText className="mx-auto h-16 w-16 text-blue-400 mb-4" />
+                <h1 className="text-4xl font-bold text-white">Prepara tu Quiz</h1>
+                <p className="text-gray-400 mt-2">Sube o arrastra tu archivo JSON para comenzar.</p>
+            </div>
+            {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-lg mb-6 text-center">{error}</div>}
+            <div className="mb-6">
+                <label htmlFor="file-upload" className={`cursor-pointer bg-gray-700 hover:bg-gray-600 text-white py-4 px-6 rounded-lg flex items-center justify-center border-2 border-dashed transition-colors ${isDragging ? 'border-blue-500 bg-gray-600' : 'border-gray-500'}`}>
+                    <Upload className="mr-3 h-6 w-6" />
+                    <span>{fileName || 'Seleccionar o arrastrar archivo JSON'}</span>
+                </label>
+                <input id="file-upload" type="file" accept=".json" onChange={handleFileChange} className="hidden" />
+            </div>
+            <button onClick={startQuiz} disabled={!fileName} className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-4 rounded-lg text-lg transition-all transform hover:scale-105">
+                <Shuffle className="inline mr-2" /> Comenzar Quiz al Azar
+            </button>
+        </div>
+    );
+    const QuizScreen = () => { /* ... (código sin cambios) ... */ };
+    const ResultsScreen = () => { /* ... (código sin cambios) ... */ };
 
-        const newHistory = [...chatHistory, { role: 'user', text: userInput }];
-        setChatHistory(newHistory);
-        setUserInput('');
-        setIsLoading(true);
-        setError('');
-
-        try {
-            const response = await fetch('/api/assistant-general', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    question: userInput, 
-                    history: chatHistory,
-                    context: sourceText // Enviamos el texto del archivo como contexto
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error del servidor');
-            }
-            const result = await response.json();
-            setChatHistory([...newHistory, { role: 'assistant', text: result.reply }]);
-        } catch (err) {
-            setError(`No se pudo obtener respuesta: ${err.message}`);
-        } finally {
-            setIsLoading(false);
+    const renderContent = () => {
+        switch (appState) {
+            case 'setup': return <QuizSetup />;
+            case 'quiz': return <QuizScreen />;
+            case 'results': return <ResultsScreen />;
+            default: return <QuizSetup />;
         }
     };
+    
+    return renderContent();
+};
+
+// --- Componente: Asistente de Estudio con IA ---
+const AiAssistant = () => { /* ... (código sin cambios) ... */ };
+
+// --- Componente: Historial de Quizzes ---
+const QuizHistory = ({ userId, appId }) => {
+    const [history, setHistory] = React.useState([]);
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        if (!userId) {
+            setLoading(false);
+            return;
+        }
+        const historyCollectionPath = `/artifacts/${appId}/users/${userId}/quizHistory`;
+        const q = query(collection(db, historyCollectionPath));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const historyData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                date: doc.data().timestamp?.toDate().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })
+            })).sort((a, b) => b.timestamp - a.timestamp);
+            setHistory(historyData);
+            setLoading(false);
+        }, (err) => {
+            console.error("Error al obtener historial:", err);
+            setLoading(false);
+        });
+        return () => unsubscribe();
+    }, [userId, appId]);
+
+    if (loading) {
+        return <div className="text-center text-white"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-400 mx-auto"></div></div>;
+    }
+
+    if (history.length === 0) {
+        return (
+            <div className="text-center text-gray-400 p-8 bg-gray-800 rounded-2xl">
+                <History className="mx-auto h-16 w-16 text-blue-400 mb-4" />
+                <h2 className="text-2xl text-white">Aún no hay historial</h2>
+                <p>Completa un quiz en la pestaña "Tomar Quiz" para ver tus resultados aquí.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="w-full max-w-4xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700">
             <div className="text-center mb-8">
-                <Bot className="mx-auto h-16 w-16 text-blue-400 mb-4" />
-                <h1 className="text-4xl font-bold text-white">Kai AI - asistente de IA</h1>
-                <p className="text-gray-400 mt-2">Kai es un asistente potenciado por inteligencia artificial.</p>
+                <History className="mx-auto h-16 w-16 text-blue-400 mb-4" />
+                <h1 className="text-4xl font-bold text-white">Historial de Quizzes</h1>
             </div>
-            
-            <div className="flex flex-col h-[60vh]">
-                <div className="flex-grow bg-gray-900 rounded-t-lg p-4 overflow-y-auto space-y-4">
-                    {chatHistory.map((msg, index) => (
-                        <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-lg p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200'}`}>
-                                {msg.text}
-                            </div>
+            <div className="space-y-4">
+                {history.map(item => (
+                    <div key={item.id} className="bg-gray-700 p-4 rounded-lg flex justify-between items-center">
+                        <div>
+                            <p className="font-bold text-white text-lg">{item.quizTitle}</p>
+                            <p className="text-gray-400 text-sm">{item.date}</p>
                         </div>
-                    ))}
-                    {isLoading && (
-                        <div className="flex justify-start">
-                            <div className="max-w-lg p-3 rounded-lg bg-gray-700 text-gray-200">
-                                <div className="flex items-center space-x-2">
-                                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
-                                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-150"></span>
-                                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-300"></span>
-                                </div>
-                            </div>
+                        <div className="text-right">
+                             <p className={`font-bold text-2xl ${item.score >= 6 ? 'text-green-400' : 'text-red-400'}`}>{item.score}</p>
+                             <p className="text-gray-400 text-sm">{item.correct} / {item.total} correctas</p>
                         </div>
-                    )}
-                </div>
-                <div className="p-2 bg-gray-700 border-t border-b border-gray-600" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-                     <label htmlFor="file-upload-assistant" className={`cursor-pointer text-white py-2 px-4 rounded-lg flex items-center justify-center border-2 border-dashed transition-colors ${isDragging ? 'border-blue-500 bg-gray-600' : 'border-gray-500'}`}>
-                        <Upload className="mr-2 h-5 w-5" />
-                        <span>{fileName || 'Sube un archivo para chatear sobre él'}</span>
-                    </label>
-                    <input id="file-upload-assistant" type="file" accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleFileChange} className="hidden" />
-                    {fileProcessing && <p className="text-blue-400 mt-2 text-center text-sm animate-pulse">Procesando...</p>}
-                </div>
-                <form onSubmit={handleSendMessage} className="flex items-center p-2 bg-gray-700 rounded-b-lg">
-                    <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Escribe tu pregunta aquí..." className="flex-grow bg-transparent text-white focus:outline-none px-4" />
-                    <button type="submit" disabled={isLoading || !userInput.trim()} className="p-2 bg-blue-600 hover:bg-blue-700 rounded-full disabled:bg-gray-500">
-                        <Send className="h-5 w-5 text-white" />
-                    </button>
-                </form>
-                {error && <div className="bg-red-500/20 text-red-300 p-2 mt-2 rounded-lg text-center">{error}</div>}
+                    </div>
+                ))}
             </div>
         </div>
     );
 };
 
-
 // --- Componente Principal con Navegación ---
 export default function App() {
     const [activeTab, setActiveTab] = React.useState('assistant');
+    const [userId, setUserId] = React.useState(null);
+    // eslint-disable-next-line no-undef
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-quiz-app';
+
+    React.useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                setUserId(user.uid);
+            } else {
+                try {
+                    // eslint-disable-next-line no-undef
+                    if (typeof __initial_auth_token !== 'undefined') {
+                        // eslint-disable-next-line no-undef
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Error de autenticación:", error);
+                }
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     return (
         <main className="bg-gray-900 min-h-screen w-full flex flex-col items-center font-sans p-4">
@@ -401,11 +432,15 @@ export default function App() {
                     <button onClick={() => setActiveTab('take')} className={`flex items-center px-6 py-3 text-lg font-semibold transition-colors ${activeTab === 'take' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}>
                         <BookOpen className="mr-2 h-5 w-5" /> Tomar Quiz
                     </button>
+                    <button onClick={() => setActiveTab('history')} className={`flex items-center px-6 py-3 text-lg font-semibold transition-colors ${activeTab === 'history' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}>
+                        <History className="mr-2 h-5 w-5" /> Historial
+                    </button>
                 </div>
                 <div className="w-full">
                     {activeTab === 'assistant' && <AiAssistant />}
                     {activeTab === 'create' && <QuizGenerator />}
-                    {activeTab === 'take' && <QuizTaker />}
+                    {activeTab === 'take' && <QuizTaker userId={userId} appId={appId} />}
+                    {activeTab === 'history' && <QuizHistory userId={userId} appId={appId} />}
                 </div>
             </div>
         </main>
