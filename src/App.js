@@ -53,8 +53,7 @@ const QuizGenerator = () => {
         setGeneratedJson('');
         try {
             if (file.type === 'text/plain') {
-                const text = await file.text();
-                setSourceText(text);
+                setSourceText(await file.text());
                 setFileProcessing(false);
             } else if (file.type === 'application/pdf') {
                 if (!window.pdfjsLib) throw new Error('PDF.js no cargado. Refresca la página.');
@@ -200,7 +199,7 @@ const AiAssistant = () => {
     const [isLoading, setIsLoading] = React.useState(false);
     const [error, setError] = React.useState('');
     const [isDragging, setIsDragging] = React.useState(false);
-    const [chatHistory, setChatHistory] = React.useState([]);
+    const [chatHistory, setChatHistory] = React.useState([{ role: 'assistant', text: '¡Hola! Soy Kai, tu asistente IA. Puedes hacerme cualquier pregunta o subir un documento para que te ayude a analizarlo.' }]);
     const [userInput, setUserInput] = React.useState('');
 
     React.useEffect(() => {
@@ -228,7 +227,6 @@ const AiAssistant = () => {
         setError('');
         setSourceText('');
         setFileName(file.name);
-        setChatHistory([]);
         try {
             let text = '';
             if (file.type === 'text/plain') {
@@ -247,11 +245,11 @@ const AiAssistant = () => {
                             fullText += textContent.items.map(item => item.str).join(' ') + '\n';
                         }
                         if (!fullText.trim()) {
-                            setError('No se pudo extraer texto de este PDF. Intenta con otro archivo.');
+                            setError('No se pudo extraer texto de este PDF.');
                             setFileName('');
                         } else {
                             setSourceText(fullText);
-                            setChatHistory([{ role: 'assistant', text: `¡Hola! He leído el documento "${file.name}". ¿Sobre qué te gustaría preguntar?` }]);
+                            setChatHistory(prev => [...prev, { role: 'assistant', text: `¡Listo! He leído el documento "${file.name}". Ahora puedes hacerme preguntas sobre su contenido o pedirme un resumen.` }]);
                         }
                     } catch (err) { setError(`Error procesando PDF: ${err.message}`); }
                     finally { setFileProcessing(false); }
@@ -265,11 +263,11 @@ const AiAssistant = () => {
                     try {
                         const result = await window.mammoth.extractRawText({ arrayBuffer: e.target.result });
                         if (!result.value.trim()) {
-                            setError('No se pudo extraer texto de este DOCX. Intenta guardarlo como .txt o .pdf.');
+                            setError('No se pudo extraer texto de este DOCX.');
                             setFileName('');
                         } else {
                             setSourceText(result.value);
-                            setChatHistory([{ role: 'assistant', text: `¡Hola! He leído el documento "${file.name}". ¿Sobre qué te gustaría preguntar?` }]);
+                            setChatHistory(prev => [...prev, { role: 'assistant', text: `¡Listo! He leído el documento "${file.name}". Ahora puedes hacerme preguntas sobre su contenido o pedirme un resumen.` }]);
                         }
                     } catch (err) { setError(`Error procesando DOCX: ${err.message}`); }
                     finally { setFileProcessing(false); }
@@ -279,13 +277,12 @@ const AiAssistant = () => {
             } else {
                 throw new Error('Formato no soportado.');
             }
-            
             if (!text.trim()) {
                 setError('El archivo de texto está vacío.');
                 setFileName('');
             } else {
                 setSourceText(text);
-                setChatHistory([{ role: 'assistant', text: `¡Hola! He leído el documento "${file.name}". ¿Sobre qué te gustaría preguntar?` }]);
+                setChatHistory(prev => [...prev, { role: 'assistant', text: `¡Listo! He leído el documento "${file.name}". Ahora puedes hacerme preguntas sobre su contenido o pedirme un resumen.` }]);
             }
         } catch (err) {
             setError(err.message);
@@ -314,10 +311,14 @@ const AiAssistant = () => {
         setError('');
 
         try {
-            const response = await fetch('/api/assistant', {
+            const response = await fetch('/api/assistant-general', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ context: sourceText, question: userInput })
+                body: JSON.stringify({ 
+                    question: userInput, 
+                    history: chatHistory,
+                    context: sourceText // Enviamos el texto del archivo como contexto
+                })
             });
 
             if (!response.ok) {
@@ -337,53 +338,47 @@ const AiAssistant = () => {
         <div className="w-full max-w-4xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700">
             <div className="text-center mb-8">
                 <Bot className="mx-auto h-16 w-16 text-blue-400 mb-4" />
-                <h1 className="text-4xl font-bold text-white">Kai AI - Asistente de estudio</h1>
-                <p className="text-gray-400 mt-2">Kai es un asistente potenciado con inteligencia artificial.</p>
+                <h1 className="text-4xl font-bold text-white">Kai AI - asistente de IA</h1>
+                <p className="text-gray-400 mt-2">Kai es un asistente potenciado por inteligencia artificial.</p>
             </div>
             
-            {!sourceText && (
-                <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-                    <label htmlFor="file-upload-assistant" className={`cursor-pointer bg-gray-700 hover:bg-gray-600 text-white py-8 px-6 rounded-lg flex flex-col items-center justify-center border-2 border-dashed transition-colors ${isDragging ? 'border-blue-500 bg-gray-600' : 'border-gray-500'}`}>
-                        <Upload className="mr-3 h-8 w-8 mb-4" />
-                        <span className="text-lg">{fileName || 'Seleccionar o arrastrar archivo (.pdf, .docx, .txt)'}</span>
+            <div className="flex flex-col h-[60vh]">
+                <div className="flex-grow bg-gray-900 rounded-t-lg p-4 overflow-y-auto space-y-4">
+                    {chatHistory.map((msg, index) => (
+                        <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-lg p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200'}`}>
+                                {msg.text}
+                            </div>
+                        </div>
+                    ))}
+                    {isLoading && (
+                        <div className="flex justify-start">
+                            <div className="max-w-lg p-3 rounded-lg bg-gray-700 text-gray-200">
+                                <div className="flex items-center space-x-2">
+                                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
+                                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-150"></span>
+                                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-300"></span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div className="p-2 bg-gray-700 border-t border-b border-gray-600" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+                     <label htmlFor="file-upload-assistant" className={`cursor-pointer text-white py-2 px-4 rounded-lg flex items-center justify-center border-2 border-dashed transition-colors ${isDragging ? 'border-blue-500 bg-gray-600' : 'border-gray-500'}`}>
+                        <Upload className="mr-2 h-5 w-5" />
+                        <span>{fileName || 'Sube un archivo para chatear sobre él'}</span>
                     </label>
                     <input id="file-upload-assistant" type="file" accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleFileChange} className="hidden" />
-                    {fileProcessing && <p className="text-blue-400 mt-4 text-center animate-pulse">Procesando archivo...</p>}
-                    {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-lg mt-4 text-center">{error}</div>}
+                    {fileProcessing && <p className="text-blue-400 mt-2 text-center text-sm animate-pulse">Procesando...</p>}
                 </div>
-            )}
-
-            {sourceText && (
-                <div className="flex flex-col h-[60vh]">
-                    <div className="flex-grow bg-gray-900 rounded-t-lg p-4 overflow-y-auto space-y-4">
-                        {chatHistory.map((msg, index) => (
-                            <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-lg p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-200'}`}>
-                                    {msg.text}
-                                </div>
-                            </div>
-                        ))}
-                        {isLoading && (
-                            <div className="flex justify-start">
-                                <div className="max-w-lg p-3 rounded-lg bg-gray-700 text-gray-200">
-                                    <div className="flex items-center space-x-2">
-                                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
-                                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-150"></span>
-                                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-300"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    <form onSubmit={handleSendMessage} className="flex items-center p-2 bg-gray-700 rounded-b-lg border-t border-gray-600">
-                        <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Escribe tu pregunta aquí..." className="flex-grow bg-transparent text-white focus:outline-none px-4" />
-                        <button type="submit" disabled={isLoading || !userInput.trim()} className="p-2 bg-blue-600 hover:bg-blue-700 rounded-full disabled:bg-gray-500">
-                            <Send className="h-5 w-5 text-white" />
-                        </button>
-                    </form>
-                    {error && <div className="bg-red-500/20 text-red-300 p-2 mt-2 rounded-lg text-center">{error}</div>}
-                </div>
-            )}
+                <form onSubmit={handleSendMessage} className="flex items-center p-2 bg-gray-700 rounded-b-lg">
+                    <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Escribe tu pregunta aquí..." className="flex-grow bg-transparent text-white focus:outline-none px-4" />
+                    <button type="submit" disabled={isLoading || !userInput.trim()} className="p-2 bg-blue-600 hover:bg-blue-700 rounded-full disabled:bg-gray-500">
+                        <Send className="h-5 w-5 text-white" />
+                    </button>
+                </form>
+                {error && <div className="bg-red-500/20 text-red-300 p-2 mt-2 rounded-lg text-center">{error}</div>}
+            </div>
         </div>
     );
 };
@@ -398,7 +393,7 @@ export default function App() {
             <div className="w-full max-w-5xl">
                 <div className="mb-8 flex justify-center border-b border-gray-700">
                     <button onClick={() => setActiveTab('assistant')} className={`flex items-center px-6 py-3 text-lg font-semibold transition-colors ${activeTab === 'assistant' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}>
-                        <Bot className="mr-2 h-5 w-5" /> Kai AI
+                        <Bot className="mr-2 h-5 w-5" /> Asistente Kai
                     </button>
                     <button onClick={() => setActiveTab('create')} className={`flex items-center px-6 py-3 text-lg font-semibold transition-colors ${activeTab === 'create' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}>
                         <Pencil className="mr-2 h-5 w-5" /> Crear Quiz
