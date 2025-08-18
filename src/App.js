@@ -338,8 +338,8 @@ const AiAssistant = () => {
         <div className="w-full max-w-4xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700">
             <div className="text-center mb-8">
                 <Bot className="mx-auto h-16 w-16 text-blue-400 mb-4" />
-                <h1 className="text-4xl font-bold text-white">Asistente Kai</h1>
-                <p className="text-gray-400 mt-2">Chatea conmigo o sube un documento para analizarlo.</p>
+                <h1 className="text-4xl font-bold text-white">Kai AI - asistente de IA</h1>
+                <p className="text-gray-400 mt-2">Kai es un asistente potenciado por inteligencia artificial.</p>
             </div>
             
             <div className="flex flex-col h-[60vh]">
