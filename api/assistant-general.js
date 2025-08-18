@@ -1,4 +1,4 @@
-// api/assistant.js
+// api/assistant-general.js
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   // Instrucción del sistema para definir la personalidad de la IA
   const systemInstruction = {
     role: 'system',
-    parts: [{ text: "Tu nombre es Kai. Eres un asistente de IA amigable, servicial y experto en una amplia gama de temas. Tu propósito es ayudar a los usuarios a aprender y resolver sus dudas de manera clara y concisa. Siempre responde en español."}]
+    parts: [{ text: "Tu nombre es Kai. Eres un asistente de IA amigable y servicial. Tu propósito es ayudar a los usuarios a aprender y resolver sus dudas de manera clara y concisa."}]
   };
   
   // Preparamos el historial para la IA, asegurando el formato correcto
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error.message || 'Error en la API de Gemini');
+      throw new Error(errorData.error.message || 'Error en la API');
     }
 
     const result = await response.json();
