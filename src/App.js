@@ -439,7 +439,7 @@ const QuizTaker = () => {
 const AiAssistant = () => {
     const [isLoading, setIsLoading] = React.useState(false);
     const [error, setError] = React.useState('');
-    const [chatHistory, setChatHistory] = React.useState([{ role: 'assistant', text: '¡Hola! Soy tu asistente IA. ¿En qué puedo ayudarte hoy?' }]);
+    const [chatHistory, setChatHistory] = React.useState([{ role: 'assistant', text: '¡Hola!, Soy Kai tu asistente IA. ¿En qué puedo ayudarte hoy?' }]);
     const [userInput, setUserInput] = React.useState('');
 
     const handleSendMessage = async (e) => {
@@ -476,8 +476,8 @@ const AiAssistant = () => {
         <div className="w-full max-w-4xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700">
             <div className="text-center mb-8">
                 <Bot className="mx-auto h-16 w-16 text-blue-400 mb-4" />
-                <h1 className="text-4xl font-bold text-white">Asistente General IA</h1>
-                <p className="text-gray-400 mt-2">Haz cualquier pregunta y te ayudaré a resolverla.</p>
+                <h1 className="text-4xl font-bold text-white">Kai AI</h1>
+                <p className="text-gray-400 mt-2">Kai es un asistente potenciado con inteligencia artificial.</p>
             </div>
             
             <div className="flex flex-col h-[60vh]">
@@ -523,13 +523,13 @@ export default function App() {
             <div className="w-full max-w-5xl">
                 <div className="mb-8 flex justify-center border-b border-gray-700">
                     <button onClick={() => setActiveTab('assistant')} className={`flex items-center px-6 py-3 text-lg font-semibold transition-colors ${activeTab === 'assistant' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}>
-                        <Bot className="mr-2 h-5 w-5" /> Asistente IA
+                        <Bot className="mr-2 h-5 w-5" /> Kai AI
                     </button>
                     <button onClick={() => setActiveTab('create')} className={`flex items-center px-6 py-3 text-lg font-semibold transition-colors ${activeTab === 'create' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}>
                         <Pencil className="mr-2 h-5 w-5" /> Crear Quiz
                     </button>
                     <button onClick={() => setActiveTab('take')} className={`flex items-center px-6 py-3 text-lg font-semibold transition-colors ${activeTab === 'take' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}>
-                        <BookOpen className="mr-2 h-5 w-5" /> Tomar Quiz
+                        <BookOpen className="mr-2 h-5 w-5" /> Hacer Quiz
                     </button>
                 </div>
                 <div className="w-full">
