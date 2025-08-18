@@ -5,17 +5,33 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  const { context, question } = req.body;
+  const { question, history } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     return res.status(500).json({ error: 'La clave API de Gemini no está configurada.' });
   }
 
-  const prompt = `Eres un asistente experto y tu única fuente de conocimiento es el siguiente documento. Responde la pregunta del usuario basándote exclusivamente en la información contenida en este texto. Si la respuesta no se encuentra en el texto, indica amablemente que no tienes esa información en el documento proporcionado.\n\nDOCUMENTO:\n---\n${context}\n---\n\nPREGUNTA DEL USUARIO: ${question}`;
+  // Instrucción del sistema para definir la personalidad de la IA
+  const systemInstruction = {
+    role: 'system',
+    parts: [{ text: "Tu nombre es Kai. Eres un asistente de IA amigable, servicial y experto en una amplia gama de temas. Tu propósito es ayudar a los usuarios a aprender y resolver sus dudas de manera clara y concisa. Siempre responde en español."}]
+  };
+  
+  // Preparamos el historial para la IA, asegurando el formato correcto
+  const contents = history.map(h => ({
+    role: h.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: h.text }]
+  }));
+  
+  // Añadimos la nueva pregunta del usuario
+  contents.push({
+    role: 'user',
+    parts: [{ text: question }]
+  });
 
   const payload = {
-    contents: [{ parts: [{ text: prompt }] }],
+    contents: [systemInstruction, ...contents], // Añadimos la instrucción del sistema al inicio
   };
 
   try {
