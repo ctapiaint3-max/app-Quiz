@@ -5,7 +5,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  const { question, history } = req.body;
+  const { question, history, context } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -13,14 +13,16 @@ export default async function handler(req, res) {
   }
 
   // Instrucción del sistema para definir la personalidad de la IA
-  const systemInstruction = {
-    role: 'system',
-    parts: [{ text: "Tu nombre es Kai. Eres un asistente de IA amigable y servicial. Tu propósito es ayudar a los usuarios a aprender y resolver sus dudas de manera clara y concisa."}]
-  };
+  let systemInstructionText = "Tu nombre es Kai. Eres un asistente de IA amigable, servicial y experto en una amplia gama de temas. Tu propósito es ayudar a los usuarios a aprender y resolver sus dudas de manera clara y concisa. Siempre responde en español.";
+
+  // Si se proporciona un contexto (texto de un archivo), cambiamos la instrucción
+  if (context && context.trim() !== '') {
+    systemInstructionText = `Tu nombre es Kai. Eres un asistente experto, eres el asistente de aprendizaje del usuario, tu lo ayudaras a resolver dudas, y si te sube un documento lo ayudaras con la peticion que te haga relacionada a es documento.\n\nDOCUMENTO:\n---\n${context}\n---`;
+  }
   
-  // Preparamos el historial para la IA, asegurando el formato correcto
+  // Preparamos el historial para la IA, traduciendo 'assistant' a 'model'
   const contents = history.map(h => ({
-    role: h.role === 'assistant' ? 'model' : 'user',
+    role: h.role === 'assistant' ? 'model' : 'user', // <-- ESTA ES LA CORRECCIÓN
     parts: [{ text: h.text }]
   }));
   
@@ -31,7 +33,7 @@ export default async function handler(req, res) {
   });
 
   const payload = {
-    contents: [systemInstruction, ...contents], // Añadimos la instrucción del sistema al inicio
+    contents: [{ role: 'user', parts: [{ text: systemInstructionText }] }, { role: 'model', parts: [{ text: "Entendido. Procederé como Kai." }] }, ...contents],
   };
 
   try {
@@ -48,6 +50,11 @@ export default async function handler(req, res) {
     }
 
     const result = await response.json();
+    
+    if (!result.candidates || !result.candidates[0].content || !result.candidates[0].content.parts[0]) {
+        throw new Error("La respuesta de la IA no tuvo el formato esperado o fue bloqueada.");
+    }
+
     const reply = result.candidates[0].content.parts[0].text;
     
     res.status(200).json({ reply });
