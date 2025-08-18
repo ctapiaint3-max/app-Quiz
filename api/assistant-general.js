@@ -1,30 +1,21 @@
-// api/assistant-general.js
+// api/assistant.js
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  const { question, history } = req.body;
+  const { context, question } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     return res.status(500).json({ error: 'La clave API de Gemini no está configurada.' });
   }
 
-  // Preparamos el historial para la IA, asegurando el formato correcto
-  const contents = history.map(h => ({
-    role: h.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: h.text }]
-  }));
-  // Añadimos la nueva pregunta del usuario
-  contents.push({
-    role: 'user',
-    parts: [{ text: question }]
-  });
+  const prompt = `Eres un asistente experto y tu única fuente de conocimiento es el siguiente documento. Responde la pregunta del usuario basándote exclusivamente en la información contenida en este texto. Si la respuesta no se encuentra en el texto, indica amablemente que no tienes esa información en el documento proporcionado.\n\nDOCUMENTO:\n---\n${context}\n---\n\nPREGUNTA DEL USUARIO: ${question}`;
 
   const payload = {
-    contents: contents,
+    contents: [{ parts: [{ text: prompt }] }],
   };
 
   try {
@@ -37,7 +28,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error.message || 'Error en la API');
+      throw new Error(errorData.error.message || 'Error en la API de Gemini');
     }
 
     const result = await response.json();
