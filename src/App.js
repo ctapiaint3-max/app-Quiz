@@ -437,7 +437,7 @@ const QuizTaker = () => {
 const AiAssistant = () => {
     const [isLoading, setIsLoading] = React.useState(false);
     const [error, setError] = React.useState('');
-    const [chatHistory, setChatHistory] = React.useState([{ role: 'assistant', text: '¡Hola, Soy Kai!,tu asistente IA. ¿En qué puedo ayudarte hoy?' }]);
+    const [chatHistory, setChatHistory] = React.useState([{ role: 'assistant', text: '¡Hola, Soy Kai!, tu asistente IA. ¿En qué puedo ayudarte hoy?' }]);
     const [userInput, setUserInput] = React.useState('');
 
     const handleSendMessage = async (e) => {
