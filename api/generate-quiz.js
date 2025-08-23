@@ -76,8 +76,8 @@ export default async function handler(req, res) {
       """
     `;
 
-    // 6. Realizar la llamada a la API de Gemini
-    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+    // 6. Realizar la llamada a la API de Gemini con el nombre del modelo corregido
+    const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
