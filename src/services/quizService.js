@@ -4,14 +4,9 @@
  * @param {object} options - Las opciones para la solicitud fetch (método, headers, body).
  * @param {string} [token] - El token de autenticación del usuario.
  * @returns {Promise<any>} - La respuesta JSON del servidor.
- * @throws {Error} - Lanza un error si la solicitud falla.
  */
 const fetchApi = async (url, options = {}, token) => {
-    const headers = {
-        'Content-Type': 'application/json',
-        ...options.headers,
-    };
-
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
@@ -20,16 +15,38 @@ const fetchApi = async (url, options = {}, token) => {
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(errorData.message || 'Ocurrió un error en la solicitud a la API');
+        throw new Error(errorData.message || 'Ocurrió un error en la API');
     }
 
     return response.json();
 };
 
+// --- Funciones para la Biblioteca y Edición ---
+
 /**
- * Guarda un nuevo quiz en la base de datos.
- * @param {object} quizData - El objeto del quiz a guardar.
- * @param {string} token - El token de autenticación del usuario.
+ * Obtiene todos los quizzes del usuario autenticado.
+ * @param {string} token - El token de autenticación.
+ * @returns {Promise<Array>}
+ */
+export const getMyQuizzes = (token) => {
+    return fetchApi('/api/quizzes/my-quizzes', {}, token);
+};
+
+/**
+ * Obtiene los datos completos de un solo quiz por su ID.
+ * @param {number} quizId - El ID del quiz.
+ * @param {string} token - El token de autenticación.
+ * @returns {Promise<object>}
+ */
+export const getQuizById = (quizId, token) => {
+    return fetchApi(`/api/quizzes/${quizId}`, {}, token);
+};
+
+
+/**
+ * Crea un nuevo quiz en la base de datos.
+ * @param {object} quizData - { title, quiz_data, is_public }
+ * @param {string} token - El token de autenticación.
  * @returns {Promise<object>}
  */
 export const createQuiz = (quizData, token) => {
@@ -41,9 +58,9 @@ export const createQuiz = (quizData, token) => {
 
 /**
  * Actualiza un quiz existente.
- * @param {number} quizId - El ID del quiz a actualizar.
+ * @param {number} quizId - El ID del quiz.
  * @param {object} quizData - Los nuevos datos del quiz.
- * @param {string} token - El token de autenticación del usuario.
+ * @param {string} token - El token de autenticación.
  * @returns {Promise<object>}
  */
 export const updateQuiz = (quizId, quizData, token) => {
@@ -54,8 +71,23 @@ export const updateQuiz = (quizId, quizData, token) => {
 };
 
 /**
+ * Elimina un quiz.
+ * @param {number} quizId - El ID del quiz a eliminar.
+ * @param {string} token - El token de autenticación.
+ * @returns {Promise<object>}
+ */
+export const deleteQuiz = (quizId, token) => {
+    return fetchApi(`/api/quizzes/delete/${quizId}`, {
+        method: 'DELETE',
+    }, token);
+};
+
+
+// --- Funciones para Resultados ---
+
+/**
  * Guarda el resultado de un intento de quiz.
- * @param {object} resultData - Los datos del resultado.
+ * @param {object} resultData - { quizId, score, details }
  * @param {string} token - El token de autenticación.
  * @returns {Promise<object>}
  */
@@ -73,6 +105,6 @@ export const saveQuizResult = (resultData, token) => {
  * @returns {Promise<Array>}
  */
 export const getQuizHistory = (quizId, token) => {
-    if (!quizId) return Promise.resolve([]); // Devuelve una promesa resuelta si no hay ID
+    if (!quizId) return Promise.resolve([]);
     return fetchApi(`/api/results/${quizId}`, {}, token);
 };
