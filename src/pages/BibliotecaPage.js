@@ -16,26 +16,21 @@ const BibliotecaPage = () => {
 
     const fetchQuizzes = useCallback(async () => {
         if (!token) {
-            setIsLoading(false); // Si no hay token, no hay nada que cargar
+            setIsLoading(false);
             return;
         }
         try {
             setIsLoading(true);
             setError('');
             const data = await getMyQuizzes(token);
-            // La API devuelve el JSON como un string, necesitamos parsearlo
-            const parsedQuizzes = data.map(q => ({
-                ...q,
-                questions: typeof q.quiz_data === 'string' 
-                    ? JSON.parse(q.quiz_data).questions 
-                    : q.quiz_data.questions
-            }));
-            setQuizzes(parsedQuizzes);
+            // La API devuelve `quiz_data` como un objeto, así que ya no necesitamos parsearlo aquí.
+            const formattedQuizzes = data.map(q => ({ ...q, questions: q.quiz_data.questions }));
+            setQuizzes(formattedQuizzes);
         } catch (err) {
             setError('No se pudieron cargar tus quizzes. Intenta recargar la página.');
             console.error(err);
         } finally {
-            setIsLoading(false); // Aseguramos que el loading termine siempre
+            setIsLoading(false);
         }
     }, [token]);
 
@@ -46,13 +41,11 @@ const BibliotecaPage = () => {
     const handleDelete = async (quizId) => {
         const originalQuizzes = quizzes;
         setQuizzes(currentQuizzes => currentQuizzes.filter(q => q.id !== quizId));
-
         try {
             await deleteQuiz(quizId, token);
         } catch (err) {
             setError('No se pudo eliminar el quiz. Inténtalo de nuevo.');
             setQuizzes(originalQuizzes);
-            console.error(err);
         }
     };
     
@@ -78,9 +71,10 @@ const BibliotecaPage = () => {
                 };
                 
                 await createQuiz(newQuizPayload, token);
-                await fetchQuizzes();
+                await fetchQuizzes(); // Recargamos la lista de quizzes
             } catch (err) {
-                setError(`Error al importar: ${err.message}`);
+                // Mensaje de error más específico
+                setError(`Error al importar el archivo: ${err.message}`);
             }
         };
         reader.readAsText(file);
@@ -88,13 +82,9 @@ const BibliotecaPage = () => {
     };
 
     if (isLoading) {
-        return (
-            <div className="flex justify-center items-center h-full">
-                <p className="text-xl text-gray-400">Cargando tu biblioteca...</p>
-            </div>
-        );
+        return <div className="text-center text-gray-400">Cargando tu biblioteca...</div>;
     }
-    
+
     return (
         <div className="w-full">
             <div className="flex flex-wrap items-center justify-between mb-8 gap-4">
@@ -108,6 +98,7 @@ const BibliotecaPage = () => {
                         Importar Quiz
                     </button>
                     <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" style={{ display: 'none' }} />
+
                     <button onClick={() => navigate('/dashboard/crear-quiz')} className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white font-bold">
                         <PlusCircle className="mr-2 h-5 w-5" />
                         Crear Nuevo Quiz
