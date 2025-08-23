@@ -85,10 +85,12 @@ export default async function handler(req, res) {
         })
     });
 
+    // --- MANEJO DE ERRORES MEJORADO ---
     if (!geminiResponse.ok) {
-        const errorText = await geminiResponse.text();
-        console.error("Error de la API de Gemini:", errorText);
-        throw new Error('La API de Gemini devolvió un error.');
+        const errorBody = await geminiResponse.json().catch(() => geminiResponse.text());
+        const errorMessage = errorBody?.error?.message || JSON.stringify(errorBody);
+        console.error("Error de la API de Gemini:", errorMessage);
+        throw new Error(`La API de Gemini devolvió un error: ${errorMessage}`);
     }
 
     const result = await geminiResponse.json();
