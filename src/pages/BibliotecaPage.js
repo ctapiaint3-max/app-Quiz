@@ -4,30 +4,38 @@ import { useNavigate } from 'react-router-dom';
 import QuizCard from '../Components/Biblioteca/QuizCard';
 import { useAuth } from '../hooks/useAuth';
 import { getMyQuizzes, deleteQuiz, createQuiz } from '../services/quizService';
-import { validateQuizFormat } from '../utils/quizValidator'; // Importaremos un validador
+import { validateQuizFormat } from '../utils/quizValidator';
 
 const BibliotecaPage = () => {
     const navigate = useNavigate();
-    const { token } = useAuth();
+    const { token } = useAuth(); // Corregido para obtener el token del hook
     const [quizzes, setQuizzes] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    const fileInputRef = useRef(null); // Referencia para el input de archivo
+    const fileInputRef = useRef(null);
 
     const fetchQuizzes = useCallback(async () => {
-        if (!token) return;
-        setIsLoading(true);
+        if (!token) {
+            setIsLoading(false); // Si no hay token, no hay nada que cargar
+            return;
+        }
         try {
+            setIsLoading(true);
+            setError('');
             const data = await getMyQuizzes(token);
+            // La API devuelve el JSON como un string, necesitamos parsearlo
             const parsedQuizzes = data.map(q => ({
                 ...q,
-                questions: typeof q.quiz_data === 'string' ? JSON.parse(q.quiz_data).questions : q.quiz_data.questions
+                questions: typeof q.quiz_data === 'string' 
+                    ? JSON.parse(q.quiz_data).questions 
+                    : q.quiz_data.questions
             }));
             setQuizzes(parsedQuizzes);
         } catch (err) {
-            setError('No se pudieron cargar tus quizzes.');
+            setError('No se pudieron cargar tus quizzes. Intenta recargar la página.');
+            console.error(err);
         } finally {
-            setIsLoading(false);
+            setIsLoading(false); // Aseguramos que el loading termine siempre
         }
     }, [token]);
 
@@ -36,11 +44,19 @@ const BibliotecaPage = () => {
     }, [fetchQuizzes]);
 
     const handleDelete = async (quizId) => {
-        // ... (esta función no cambia)
+        const originalQuizzes = quizzes;
+        setQuizzes(currentQuizzes => currentQuizzes.filter(q => q.id !== quizId));
+
+        try {
+            await deleteQuiz(quizId, token);
+        } catch (err) {
+            setError('No se pudo eliminar el quiz. Inténtalo de nuevo.');
+            setQuizzes(originalQuizzes);
+            console.error(err);
+        }
     };
     
     const handleImportClick = () => {
-        // Simula un clic en el input de archivo oculto
         fileInputRef.current.click();
     };
 
@@ -53,7 +69,7 @@ const BibliotecaPage = () => {
         reader.onload = async (e) => {
             try {
                 const content = JSON.parse(e.target.result);
-                validateQuizFormat(content); // Validamos el formato del JSON
+                validateQuizFormat(content);
 
                 const newQuizPayload = {
                     title: file.name.replace(/\.json$/i, ''),
@@ -62,16 +78,22 @@ const BibliotecaPage = () => {
                 };
                 
                 await createQuiz(newQuizPayload, token);
-                await fetchQuizzes(); // Recargamos la lista de quizzes
+                await fetchQuizzes();
             } catch (err) {
                 setError(`Error al importar: ${err.message}`);
             }
         };
         reader.readAsText(file);
-        event.target.value = null; // Resetea el input para poder subir el mismo archivo otra vez
+        event.target.value = null;
     };
 
-    if (isLoading) return <div className="text-center text-gray-400">Cargando tu biblioteca...</div>;
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center h-full">
+                <p className="text-xl text-gray-400">Cargando tu biblioteca...</p>
+            </div>
+        );
+    }
     
     return (
         <div className="w-full">
@@ -86,7 +108,6 @@ const BibliotecaPage = () => {
                         Importar Quiz
                     </button>
                     <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" style={{ display: 'none' }} />
-
                     <button onClick={() => navigate('/dashboard/crear-quiz')} className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white font-bold">
                         <PlusCircle className="mr-2 h-5 w-5" />
                         Crear Nuevo Quiz
@@ -97,17 +118,20 @@ const BibliotecaPage = () => {
             {error && <div className="bg-red-900/50 text-red-300 p-3 rounded-lg mb-6 text-center">{error}</div>}
 
             {quizzes.length > 0 ? (
-                quizzes.map((quiz) => (
-                    <QuizCard
-                        key={quiz.id}
-                        quiz={quiz}
-                        onDelete={handleDelete}
-                    />
-                ))
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {quizzes.map(quiz => (
+                        <QuizCard 
+                            key={quiz.id} 
+                            quiz={quiz} 
+                            onDelete={handleDelete} 
+                        />
+                    ))}
+                </div>
             ) : (
-                <div className="flex flex-col items-center justify-center mt-16 text-gray-400">
-                    <Frown className="h-16 w-16 mb-4" />
-                    <p className="text-xl">No tienes quizzes en tu biblioteca.</p>
+                <div className="text-center py-16 px-8 bg-gray-800 rounded-lg border-2 border-dashed border-gray-700">
+                    <Frown className="mx-auto h-12 w-12 text-gray-500 mb-4" />
+                    <p className="text-xl text-gray-400">Tu biblioteca está vacía.</p>
+                    <p className="text-gray-500 mt-2 mb-6">¡Comienza a aprender creando o importando un cuestionario!</p>
                 </div>
             )}
         </div>
