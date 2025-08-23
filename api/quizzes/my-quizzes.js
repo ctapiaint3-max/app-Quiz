@@ -6,17 +6,20 @@ export default async function handler(req, res) {
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
+    // 1. Verificación de Autenticación
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ message: 'Token no proporcionado' });
+        return res.status(401).json({ message: 'Token de autenticación no proporcionado.' });
     }
 
     const token = authHeader.split(' ')[1];
 
     try {
+        // 2. Verificación del Token y obtención del ID de usuario
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const userId = decoded.userId;
 
+        // 3. Conexión y Consulta a la Base de Datos
         const client = await db.connect();
         const { rows } = await client.sql`
             SELECT id, title, created_at, is_public, quiz_data 
@@ -26,9 +29,18 @@ export default async function handler(req, res) {
         `;
         client.release();
 
+        // 4. Envío de la respuesta exitosa
         res.status(200).json(rows);
+
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error al obtener los quizzes del usuario.' });
+        // 5. Manejo de Errores Detallado
+        console.error('Error en /api/quizzes/my-quizzes:', error);
+
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({ message: 'Token inválido o expirado.' });
+        }
+        
+        // Este mensaje es genérico, pero el error específico se mostrará en los logs de Vercel
+        res.status(500).json({ message: 'Error interno del servidor al obtener los quizzes.' });
     }
 }
