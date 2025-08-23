@@ -1,5 +1,6 @@
-import { db } from '@vercel/postgres';
+import pool from '../../lib/db'; // La ruta sube un nivel
 import withAuth from '../middleware/auth'; // La ruta sube un nivel
+const db = pool; // Alias para mayor claridad
 
 /**
  * Manejador para obtener un quiz específico por su ID.

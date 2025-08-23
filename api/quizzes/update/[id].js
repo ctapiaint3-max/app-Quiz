@@ -1,4 +1,4 @@
-import { db } from '@vercel/postgres';
+import pool from '../../lib/db';
 import withAuth from '../../middleware/auth'; // La ruta sube dos niveles
 
 /**

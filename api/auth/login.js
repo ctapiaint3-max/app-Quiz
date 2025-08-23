@@ -1,4 +1,4 @@
-import { db } from '@vercel/postgres';
+import pool from '../lib/db';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 

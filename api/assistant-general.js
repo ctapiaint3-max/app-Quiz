@@ -1,4 +1,5 @@
-import { db } from '@vercel/postgres';
+import pool from '../lib/db'; // Ajusta la ruta según tu estructura de proyecto
+import fetch from 'node-fetch'; // Asegúrate de tener node-fetch instalado
 import withAuth from './middleware/auth'; // La ruta sube un nivel
 
 /**

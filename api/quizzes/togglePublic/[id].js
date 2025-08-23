@@ -1,5 +1,6 @@
-import { db } from '@vercel/postgres';
+import pool from '../../lib/db'; // La ruta sube dos niveles
 import withAuth from '../../middleware/auth'; // La ruta sube dos niveles
+const db = pool();
 
 /**
  * Manejador para cambiar el estado de visibilidad (público/privado) de un quiz.
