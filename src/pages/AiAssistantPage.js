@@ -1,18 +1,23 @@
+// src/pages/AiAssistantPage.js
 import React, { useState } from 'react';
-import { Bot, Send, BarChart } from 'lucide-react';
+import { Bot, Send, BarChart, BrainCircuit } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import ReactMarkdown from 'react-markdown'; // Importamos para formatear la respuesta
 
 const AiAssistantPage = () => {
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [chatHistory, setChatHistory] = useState([{ role: 'assistant', text: '¡Hola! Soy Kai, tu asistente IA. ¿En qué puedo ayudarte hoy?' }]);
-    const [userInput, setUserInput] = useState('');
+    // ... (El estado y las funciones del chat general no cambian)
+    const [isLoading, setIsLoading] = React.useState(false);
+    const [error, setError] = React.useState('');
+    const [chatHistory, setChatHistory] = React.useState([{ role: 'assistant', text: '¡Hola! Soy Kai, tu asistente IA. ¿En qué puedo ayudarte hoy?' }]);
+    const [userInput, setUserInput] = React.useState('');
+
     const [activeTab, setActiveTab] = useState('chat');
     const [feedback, setFeedback] = useState('');
     const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
+    const [feedbackError, setFeedbackError] = useState('');
     const { token } = useAuth();
-
-    const handleSendMessage = async (e) => {
+    
+     const handleSendMessage = async (e) => {
         e.preventDefault();
         if (!userInput.trim() || isLoading) return;
 
@@ -42,39 +47,74 @@ const AiAssistantPage = () => {
         }
     };
 
+
     const getAiFeedback = async () => {
         setIsFeedbackLoading(true);
         setFeedback('');
+        setFeedbackError('');
         try {
             const response = await fetch('/api/ai/feedback', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            if (!response.ok) throw new Error('Error al obtener feedback.');
+
             const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Error al obtener el análisis.');
+            }
+            
             setFeedback(data.feedback);
         } catch (err) {
-            setFeedback('Hubo un error al generar tu análisis. Inténtalo más tarde.');
+            setFeedbackError(err.message);
+            console.error(err);
         } finally {
             setIsFeedbackLoading(false);
         }
     };
 
+    const renderFeedback = () => {
+        if (isFeedbackLoading) {
+            return (
+                <div className="text-center p-10">
+                    <BrainCircuit className="h-12 w-12 text-blue-400 mx-auto animate-pulse" />
+                    <p className="mt-4 text-gray-400">Analizando tu rendimiento...</p>
+                </div>
+            );
+        }
+        if (feedbackError) {
+            return (
+                <div className="bg-red-500/10 text-red-300 p-4 rounded-lg text-center">
+                    <p><strong>Oops! Hubo un problema</strong></p>
+                    <p>{feedbackError}</p>
+                </div>
+            );
+        }
+        if (feedback) {
+            return (
+                <div className="bg-gray-900 p-6 rounded-lg prose prose-invert prose-p:text-gray-300 prose-headings:text-white">
+                    <ReactMarkdown>{feedback}</ReactMarkdown>
+                </div>
+            );
+        }
+        return null;
+    };
+
     return (
         <div className="w-full max-w-4xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700">
-            <div className="text-center mb-8">
+             <div className="text-center mb-8">
                 <Bot className="mx-auto h-16 w-16 text-blue-400 mb-4" />
                 <h1 className="text-4xl font-bold text-white">Kai AI, tu asistente de estudio</h1>
                 <p className="text-gray-400 mt-2">Haz preguntas, pide resúmenes o analiza tu rendimiento.</p>
             </div>
             
-            <div className="flex border-b border-gray-700 mb-4">
-                <button onClick={() => setActiveTab('chat')} className={`py-2 px-4 ${activeTab === 'chat' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400'}`}>Chat General</button>
-                <button onClick={() => setActiveTab('feedback')} className={`py-2 px-4 ${activeTab === 'feedback' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400'}`}>Análisis de Rendimiento</button>
+            <div className="flex border-b border-gray-700 mb-6">
+                <button onClick={() => setActiveTab('chat')} className={`py-2 px-4 transition-colors ${activeTab === 'chat' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400 hover:text-white'}`}>Chat General</button>
+                <button onClick={() => setActiveTab('feedback')} className={`py-2 px-4 transition-colors ${activeTab === 'feedback' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400 hover:text-white'}`}>Análisis de Rendimiento</button>
             </div>
 
             {activeTab === 'chat' && (
-                <div className="flex flex-col h-[60vh]">
+               <div className="flex flex-col h-[60vh]">
                     <div className="flex-grow bg-gray-900 rounded-t-lg p-4 overflow-y-auto space-y-4">
                         {chatHistory.map((msg, index) => (
                             <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -107,15 +147,15 @@ const AiAssistantPage = () => {
 
             {activeTab === 'feedback' && (
                 <div>
-                    <button onClick={getAiFeedback} disabled={isFeedbackLoading} className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 text-white font-bold py-3 rounded-lg flex items-center justify-center">
-                        <BarChart className="mr-2" />
-                        {isFeedbackLoading ? 'Analizando...' : 'Generar mi Análisis de Rendimiento'}
-                    </button>
-                    {feedback && (
-                        <div className="mt-6 bg-gray-900 p-4 rounded-lg whitespace-pre-wrap">
-                            <p>{feedback}</p>
-                        </div>
+                    {!feedback && !isFeedbackLoading && !feedbackError && (
+                        <button onClick={getAiFeedback} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center transition-transform transform hover:scale-105">
+                            <BarChart className="mr-2" />
+                            Generar mi Análisis de Rendimiento
+                        </button>
                     )}
+                    <div className="mt-6">
+                        {renderFeedback()}
+                    </div>
                 </div>
             )}
         </div>
