@@ -2,6 +2,7 @@
   "name": "mi-quiz-app",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",
     "@testing-library/dom": "^10.4.1",
