@@ -1,24 +1,24 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from './hooks/useAuth';
 
-// Importaciones de Páginas y Componentes
+// Importación de Páginas y Componentes
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import QuizGeneratorPage from './pages/QuizGeneratorPage';
-import AiAssistantPage from './pages/AiAssistantPage';
-import QuizTakerPage from './pages/QuizTakerPage';
 import BibliotecaPage from './pages/BibliotecaPage';
+import QuizGeneratorPage from './pages/QuizGeneratorPage';
+import QuizTakerPage from './pages/QuizTakerPage';
+import AiAssistantPage from './pages/AiAssistantPage';
 import QuizEditorPage from './pages/QuizEditorPage';
 import CommunityHub from './pages/CommunityHub';
+import ProfilePage from './pages/ProfilePage';
 import LoadingScreen from './Components/LoadingScreen';
-
-// Importación del Hook de Autenticación
-import { useAuth } from './hooks/useAuth';
 
 /**
  * Componente de Ruta Protegida
- * Este es su lugar correcto. Verifica si el usuario está autenticado.
+ * Verifica si el usuario está autenticado. Si no, lo redirige a la página de login.
+ * Mientras verifica, muestra una pantalla de carga.
  */
 const ProtectedRoute = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -27,30 +27,37 @@ const ProtectedRoute = () => {
     return <LoadingScreen />;
   }
 
+  // Si está autenticado, renderiza el contenido anidado (Outlet). Si no, redirige a login.
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
 };
 
+/**
+ * Componente Principal de Rutas de la Aplicación
+ */
 const AppRoutes = () => {
   return (
     <Router>
       <Routes>
+        {/* Rutas Públicas */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* Todas las rutas del dashboard están protegidas por ProtectedRoute */}
+        {/* Ruta principal protegida que contiene el layout del Dashboard */}
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<DashboardPage />}>
+            {/* Rutas Anidadas (se renderizan dentro de DashboardPage) */}
             <Route index element={<Navigate to="biblioteca" replace />} />
             <Route path="biblioteca" element={<BibliotecaPage />} />
-            <Route path="crear-quiz" element={<QuizGeneratorPage />} />
-            <Route path="asistente" element={<AiAssistantPage />} />
-            <Route path="tomar-quiz" element={<QuizTakerPage />} />
             <Route path="comunidad" element={<CommunityHub />} />
+            <Route path="crear-quiz" element={<QuizGeneratorPage />} />
+            <Route path="tomar-quiz" element={<QuizTakerPage />} />
+            <Route path="asistente" element={<AiAssistantPage />} />
             <Route path="editar-quiz/:quizId" element={<QuizEditorPage />} />
-            <Route path="perfil" element={<h1 className="text-4xl font-bold">Mi Perfil</h1>} />
+            <Route path="perfil" element={<ProfilePage />} />
           </Route>
         </Route>
         
+        {/* Redirección para la ruta raíz y cualquier otra ruta no encontrada */}
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
     </Router>
