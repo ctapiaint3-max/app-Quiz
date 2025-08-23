@@ -1,15 +1,20 @@
 import { db } from '@vercel/postgres';
-import jwt from 'jsonwebtoken';
+import withAuth from '../middleware/auth'; // La ruta sube un nivel
 
-export default async function handler(req, res) {
-    if (req.method !== 'GET') return res.status(405).end();
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).end();
+/**
+ * Manejador para obtener los logros de un usuario autenticado.
+ * @param {import('http').IncomingMessage} req - La solicitud entrante.
+ * @param {import('http').ServerResponse} res - La respuesta del servidor.
+ */
+async function handler(req, res) {
+    if (req.method !== 'GET') {
+        res.setHeader('Allow', ['GET']);
+        return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
+    }
 
     try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const userId = decoded.userId;
+        // El userId se obtiene de forma segura del token verificado por el middleware.
+        const { userId } = req.user;
 
         const client = await db.connect();
         const { rows } = await client.sql`
@@ -23,6 +28,10 @@ export default async function handler(req, res) {
         
         res.status(200).json(rows);
     } catch (error) {
-        res.status(500).json({ message: 'Error al obtener logros.' });
+        console.error('Error en /api/gamification/achievements:', error);
+        res.status(500).json({ error: 'Error al obtener los logros.' });
     }
 }
+
+// Envolvemos el manejador con el middleware de autenticación.
+export default withAuth(handler);

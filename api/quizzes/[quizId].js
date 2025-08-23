@@ -1,35 +1,50 @@
 import { db } from '@vercel/postgres';
-import jwt from 'jsonwebtoken';
+import withAuth from '../middleware/auth'; // La ruta sube un nivel
 
-export default async function handler(req, res) {
+/**
+ * Manejador para obtener un quiz específico por su ID.
+ * @param {import('http').IncomingMessage} req - La solicitud entrante.
+ * @param {import('http').ServerResponse} res - La respuesta del servidor.
+ */
+async function handler(req, res) {
     if (req.method !== 'GET') {
-        return res.status(405).json({ message: 'Method Not Allowed' });
+        res.setHeader('Allow', ['GET']);
+        return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
     }
 
-    const { quizId } = req.query;
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-        return res.status(401).json({ message: 'No autorizado' });
-    }
-
-    const token = authHeader.split(' ')[1];
     try {
-        jwt.verify(token, process.env.JWT_SECRET);
+        const { quizId } = req.query;
+        const { userId } = req.user; // userId viene del middleware
 
         const client = await db.connect();
         const { rows } = await client.sql`
-            SELECT id, title, quiz_data, is_public FROM quizzes WHERE id = ${quizId};
+            SELECT id, title, quiz_data, is_public, user_id FROM quizzes WHERE id = ${quizId};
         `;
         client.release();
 
         if (rows.length === 0) {
-            return res.status(404).json({ message: 'Quiz no encontrado.' });
+            return res.status(404).json({ error: 'Quiz no encontrado.' });
         }
 
-        res.status(200).json(rows[0]);
+        const quiz = rows[0];
+
+        // --- Lógica de Autorización ---
+        // Un usuario puede ver el quiz si es público, O si es el propietario.
+        if (!quiz.is_public && quiz.user_id !== userId) {
+            return res.status(403).json({ error: 'No tienes permiso para ver este quiz.' });
+        }
+
+        // Por seguridad, no enviamos el user_id del propietario al cliente.
+        const { user_id, ...quizDataToSend } = quiz;
+
+        res.status(200).json(quizDataToSend);
 
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error al obtener el quiz.' });
+        console.error(`Error en /api/quizzes/${req.query.quizId}:`, error);
+        res.status(500).json({ error: 'Error interno del servidor.' });
     }
 }
+
+// Envolvemos el manejador con el middleware para asegurar que solo usuarios
+// autenticados puedan intentar acceder a los quizzes.
+export default withAuth(handler);

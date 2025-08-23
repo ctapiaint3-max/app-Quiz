@@ -1,28 +1,36 @@
-// api/assistant-general.js
+import withAuth from './middleware/auth'; // La ruta sube un nivel
 
-export default async function handler(req, res) {
+/**
+ * Manejador para el asistente de IA general.
+ * @param {import('http').IncomingMessage} req - La solicitud entrante.
+ * @param {import('http').ServerResponse} res - La respuesta del servidor.
+ */
+async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método no permitido' });
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
   }
 
   const { question, history, context } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: 'La clave API de Gemini no está configurada.' });
+    console.error("CRITICAL ERROR: La variable de entorno GEMINI_API_KEY no está configurada.");
+    return res.status(500).json({ error: 'Error de configuración en el servidor. El servicio de IA no está disponible.' });
   }
 
-  // Instrucción del sistema para definir la personalidad de la IA
+  // La autenticación ya fue validada por el middleware `withAuth`.
+  // `req.user` está disponible si se necesita personalizar la respuesta.
+
   let systemInstructionText = "Tu nombre es Kai. Eres un asistente de IA amigable, servicial y experto en una amplia gama de temas. Tu propósito es ayudar a los usuarios a aprender y resolver sus dudas de manera clara y concisa. Siempre responde en español.";
 
-  // Si se proporciona un contexto (texto de un archivo), cambiamos la instrucción
   if (context && context.trim() !== '') {
     systemInstructionText = `Tu nombre es Kai. Eres un asistente experto, eres el asistente de aprendizaje del usuario, tu lo ayudaras a resolver dudas, y si te sube un documento lo ayudaras con la peticion que te haga relacionada a es documento.\n\nDOCUMENTO:\n---\n${context}\n---`;
   }
   
   // Preparamos el historial para la IA, traduciendo 'assistant' a 'model'
   const contents = history.map(h => ({
-    role: h.role === 'assistant' ? 'model' : 'user', // <-- ESTA ES LA CORRECCIÓN
+    role: h.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: h.text }]
   }));
   
@@ -37,7 +45,7 @@ export default async function handler(req, res) {
   };
 
   try {
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -45,8 +53,8 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error.message || 'Error en la API');
+      const errorData = await response.json().catch(() => ({ error: { message: 'Respuesta no válida de la API de IA.' }}));
+      throw new Error(errorData.error.message || 'Error en la API de IA');
     }
 
     const result = await response.json();
@@ -60,6 +68,10 @@ export default async function handler(req, res) {
     res.status(200).json({ reply });
 
   } catch (error) {
+    console.error('Error en /api/assistant-general:', error);
     res.status(500).json({ error: error.message });
   }
 }
+
+// Envolvemos el manejador con el middleware de autenticación.
+export default withAuth(handler);

@@ -1,35 +1,41 @@
 import { db } from '@vercel/postgres';
-import jwt from 'jsonwebtoken';
+import withAuth from '../middleware/auth';
 
-export default async function handler(req, res) {
-    if (req.method !== 'GET') {
-        return res.status(405).json({ message: 'Method Not Allowed' });
-    }
+/**
+ * Manejador para obtener los quizzes de un usuario autenticado.
+ * @param {import('http').IncomingMessage} req - La solicitud entrante.
+ * @param {import('http').ServerResponse} res - La respuesta del servidor.
+ */
+async function handler(req, res) {
+  // Ya no necesitamos verificar el token aquí, el middleware `withAuth` se encarga de eso.
 
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ message: 'Token de autenticación no proporcionado.' });
-    }
+  if (req.method !== 'GET') {
+    // Es una buena práctica mantener la validación del método HTTP.
+    res.setHeader('Allow', ['GET']);
+    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
+  }
 
-    try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const userId = decoded.userId;
+  try {
+    // El middleware `withAuth` ha verificado el token y añadido `req.user`.
+    const { userId } = req.user;
 
-        const client = await db.connect();
-        // Esta consulta asume que tus tablas se llaman 'quizzes' y 'users'
-        const { rows } = await client.sql`
-            SELECT id, title, created_at, is_public, quiz_data 
-            FROM quizzes 
-            WHERE user_id = ${userId}
-            ORDER BY created_at DESC;
-        `;
-        client.release();
+    const client = await db.connect();
+    const { rows } = await client.sql`
+        SELECT id, title, created_at, is_public, quiz_data 
+        FROM quizzes 
+        WHERE user_id = ${userId}
+        ORDER BY created_at DESC;
+    `;
+    client.release();
 
-        res.status(200).json(rows);
-
-    } catch (error) {
-        console.error('Error en /api/quizzes/my-quizzes:', error);
-        res.status(500).json({ message: 'Error interno del servidor al obtener los quizzes.' });
-    }
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error('Error en /api/quizzes/my-quizzes:', error);
+    // Usamos una respuesta de error estandarizada.
+    res.status(500).json({ error: 'Error interno del servidor al obtener los quizzes.' });
+  }
 }
+
+// Envolvemos nuestro manejador con el middleware de autenticación.
+// Cualquier petición a esta ruta deberá tener un token válido.
+export default withAuth(handler);
