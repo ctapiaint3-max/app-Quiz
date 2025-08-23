@@ -1,10 +1,13 @@
-// FILE: src/pages/QuizTakerPage.js
+// -----------------------------------------------------------------------------
+// ARCHIVO 2: src/pages/QuizTakerPage.js (VERSIÓN ACTUALIZADA)
+// -----------------------------------------------------------------------------
+// Ahora, esta página puede recibir un quiz para iniciarlo automáticamente.
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom'; // 1. Importamos useLocation
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Upload, FileText, Clock, CheckCircle, XCircle, BarChart2, Repeat, Shuffle } from 'lucide-react';
 
-// --- Función para barajar un array (puedes moverla a un archivo de utilidades si prefieres) ---
 const shuffleArray = (array) => {
     let currentIndex = array.length, randomIndex;
     while (currentIndex !== 0) {
@@ -16,19 +19,55 @@ const shuffleArray = (array) => {
 };
 
 const QuizTakerPage = () => {
-    const [appState, setAppState] = React.useState('setup');
-    const [quizData, setQuizData] = React.useState(null);
-    const [shuffledQuestions, setShuffledQuestions] = React.useState([]);
-    const [currentQuestionIndex, setCurrentQuestionIndex] = React.useState(0);
-    const [userAnswers, setUserAnswers] = React.useState({});
-    const [timeLeft, setTimeLeft] = React.useState(0);
-    const [results, setResults] = React.useState(null);
-    const [error, setError] = React.useState('');
-    const [fileName, setFileName] = React.useState('');
-    const [isDragging, setIsDragging] = React.useState(false);
+    const location = useLocation(); // 2. Inicializamos el hook para acceder al 'state'
 
-    const finishQuiz = React.useCallback(() => {
+    const [appState, setAppState] = useState('setup');
+    const [quizData, setQuizData] = useState(null);
+    const [shuffledQuestions, setShuffledQuestions] = useState([]);
+    const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+    const [userAnswers, setUserAnswers] = useState({});
+    const [timeLeft, setTimeLeft] = useState(0);
+    const [results, setResults] = useState(null);
+    const [error, setError] = useState('');
+    const [fileName, setFileName] = useState('');
+    const [isDragging, setIsDragging] = useState(false);
+
+    // 3. Creamos una función reutilizable para iniciar el quiz
+    const startQuiz = useCallback((quiz) => {
+        if (quiz && quiz.questions) {
+            // Transformamos las preguntas al formato que necesita el componente
+            const transformedQuestions = quiz.questions.map(q => {
+                const correctAnswerObj = q.respuestas.find(r => r.correcta === true);
+                return { 
+                    question: q.pregunta, 
+                    options: q.respuestas.map(r => r.respuesta), 
+                    answer: correctAnswerObj.respuesta, 
+                    theme: q.tema 
+                };
+            });
+
+            setQuizData({ title: quiz.title, questions: transformedQuestions });
+            setShuffledQuestions(shuffleArray([...transformedQuestions]));
+            setTimeLeft(transformedQuestions.length * 30);
+            setCurrentQuestionIndex(0);
+            setUserAnswers({});
+            setResults(null);
+            setAppState('quiz');
+        }
+    }, []);
+
+    // 4. useEffect para comprobar si se ha pasado un quiz desde la biblioteca
+    useEffect(() => {
+        // Si hay un quiz en location.state, lo iniciamos
+        if (location.state && location.state.quizToLoad) {
+            startQuiz(location.state.quizToLoad);
+        }
+    }, [location.state, startQuiz]);
+
+
+    const finishQuiz = useCallback(() => {
         if (!quizData) return;
+        // ... (el resto de la función finishQuiz no cambia)
         const topicResults = {};
         let totalCorrect = 0;
         shuffledQuestions.forEach((q, index) => {
@@ -53,7 +92,7 @@ const QuizTakerPage = () => {
         setAppState('results');
     }, [quizData, userAnswers, shuffledQuestions]);
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (appState !== 'quiz' || timeLeft <= 0) return;
         const timerId = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
         if (timeLeft === 1) setTimeout(finishQuiz, 1000);
@@ -68,15 +107,8 @@ const QuizTakerPage = () => {
             reader.onload = (e) => {
                 try {
                     const loadedJson = JSON.parse(e.target.result);
-                    if (!Array.isArray(loadedJson) || loadedJson.length === 0) throw new Error("El JSON debe ser un array de preguntas.");
-                    const transformedQuestions = loadedJson.map(q => {
-                        const correctAnswerObj = q.respuestas.find(r => r.correcta === true);
-                        if (!q.pregunta || !Array.isArray(q.respuestas) || !correctAnswerObj || !q.tema) {
-                            throw new Error("Cada pregunta debe tener 'pregunta', 'respuestas', 'tema' y una respuesta correcta.");
-                        }
-                        return { question: q.pregunta, options: q.respuestas.map(r => r.respuesta), answer: correctAnswerObj.respuesta, theme: q.tema };
-                    });
-                    setQuizData({ title: file.name.replace('.json', ''), questions: transformedQuestions });
+                    // Usamos la misma función startQuiz para mantener la lógica centralizada
+                    startQuiz({ title: file.name.replace('.json', ''), questions: loadedJson });
                 } catch (err) {
                     setError(`Error al procesar JSON: ${err.message}`);
                     setQuizData(null);
@@ -98,17 +130,6 @@ const QuizTakerPage = () => {
         event.preventDefault();
         setIsDragging(false);
         processQuizFile(event.dataTransfer.files[0]);
-    };
-
-    const startQuiz = () => {
-        if (quizData) {
-            setShuffledQuestions(shuffleArray([...quizData.questions]));
-            setTimeLeft(quizData.questions.length * 30);
-            setCurrentQuestionIndex(0);
-            setUserAnswers({});
-            setResults(null);
-            setAppState('quiz');
-        }
     };
 
     const handleAnswerSelect = (questionIndex, selectedOption) => {
@@ -145,13 +166,11 @@ const QuizTakerPage = () => {
                 </label>
                 <input id="file-upload" type="file" accept=".json" onChange={handleFileChange} className="hidden" />
             </div>
-            <button onClick={startQuiz} disabled={!quizData} className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold py-4 rounded-lg text-lg transition-all transform hover:scale-105">
-                <Shuffle className="inline mr-2" /> Comenzar Quiz al Azar
-            </button>
         </div>
     );
 
     const QuizScreen = () => {
+        // ... (el resto del componente QuizScreen no cambia)
         const currentQuestion = shuffledQuestions[currentQuestionIndex];
         const progress = ((currentQuestionIndex + 1) / shuffledQuestions.length) * 100;
         const isAnswerSelected = userAnswers[currentQuestionIndex] !== undefined;
@@ -174,6 +193,7 @@ const QuizTakerPage = () => {
     };
 
     const ResultsScreen = () => (
+        // ... (el resto del componente ResultsScreen no cambia)
         <div className="w-full max-w-5xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 text-white">
             <h1 className="text-4xl font-bold text-center mb-2">Resultados del Quiz</h1>
             <h2 className="text-2xl text-gray-400 text-center mb-8">{quizData.title}</h2>

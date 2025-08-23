@@ -1,18 +1,30 @@
 // -----------------------------------------------------------------------------
-// ARCHIVO 2: src/Components/Biblioteca/QuizCard.js (¡NUEVO ARCHIVO!)
+// ARCHIVO 1: src/Components/Biblioteca/QuizCard.js (VERSIÓN ACTUALIZADA)
 // -----------------------------------------------------------------------------
-// Este componente es la tarjeta que muestra la información de un solo quiz.
+// Ahora el botón "Iniciar" usa el hook useNavigate para navegar y pasar datos.
 
 import React from 'react';
+import { useNavigate } from 'react-router-dom'; // 1. Importamos useNavigate
 import { BookOpen, Edit, Trash2, Clock, HelpCircle } from 'lucide-react';
 
 const QuizCard = ({ quiz, onDelete }) => {
+    const navigate = useNavigate(); // 2. Inicializamos el hook
+
     const questionCount = quiz.questions ? quiz.questions.length : 0;
     const formattedDate = new Date(quiz.createdAt).toLocaleDateString('es-ES', {
         day: '2-digit',
         month: 'long',
         year: 'numeric'
     });
+
+    // 3. Creamos la función para manejar el clic en "Iniciar"
+    const handleStartQuiz = () => {
+        // Navegamos a la página para tomar el quiz
+        navigate('/dashboard/tomar-quiz', { 
+            // Y pasamos el objeto completo del quiz en el 'state' de la navegación
+            state: { quizToLoad: quiz } 
+        });
+    };
 
     return (
         <div className="bg-gray-800 rounded-lg shadow-lg p-6 flex flex-col justify-between border border-gray-700 hover:border-blue-500 transition-colors">
@@ -28,7 +40,11 @@ const QuizCard = ({ quiz, onDelete }) => {
                 </div>
             </div>
             <div className="flex space-x-2">
-                <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center">
+                {/* 4. Asignamos la nueva función al botón */}
+                <button 
+                    onClick={handleStartQuiz}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center"
+                >
                     <BookOpen className="h-5 w-5 mr-2" />
                     Iniciar
                 </button>
