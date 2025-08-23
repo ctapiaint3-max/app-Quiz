@@ -1,5 +1,6 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth"; // Importamos el hook de autenticación
 import {
   LayoutDashboard,
   FilePlus2,
@@ -9,84 +10,112 @@ import {
   User,
   ChevronLeft,
   ChevronRight,
-  X
+  X,
+  Globe,   // Icono para Comunidad
+  LogOut,  // Icono para Logout
 } from "lucide-react";
 
 const Sidebar = ({ isOpen, toggleSidebar, isCollapsed, toggleCollapse }) => {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  // Centralizamos los items del menú en un array para que sea fácil modificarlos
   const menuItems = [
-    { to: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
-    { to: "/dashboard/crear-quiz", label: "Crear Quiz", icon: <FilePlus2 size={20} /> },
-    { to: "/dashboard/asistente", label: "Asistente", icon: <Bot size={20} /> },
-    { to: "/dashboard/tomar-quiz", label: "Tomar Quiz", icon: <Edit3 size={20} /> },
     { to: "/dashboard/biblioteca", label: "Biblioteca", icon: <BookOpen size={20} /> },
+    { to: "/dashboard/comunidad", label: "Comunidad", icon: <Globe size={20} /> },
+    { to: "/dashboard/crear-quiz", label: "Crear Quiz", icon: <FilePlus2 size={20} /> },
+    { to: "/dashboard/tomar-quiz", label: "Tomar Quiz", icon: <Edit3 size={20} /> },
+    { to: "/dashboard/asistente", label: "Asistente IA", icon: <Bot size={20} /> },
     { to: "/dashboard/perfil", label: "Perfil", icon: <User size={20} /> },
   ];
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login'); // Redirigimos al login después de cerrar sesión
+  };
+
+  // Componente interno para no repetir el código de los enlaces
+  const NavLink = ({ to, icon, label, isCollapsed, onClick }) => (
+    <Link
+      to={to}
+      onClick={onClick}
+      className={`flex items-center gap-4 p-3 rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors ${isCollapsed ? 'justify-center' : ''}`}
+    >
+      {icon}
+      {!isCollapsed && <span className="font-medium">{label}</span>}
+    </Link>
+  );
+
   return (
     <>
-      {/* Sidebar escritorio */}
+      {/* --- Sidebar para Escritorio (visible en md y superior) --- */}
       <aside
         className={`
-          hidden md:flex flex-col bg-gray-800 text-white h-screen
-          transition-all duration-300 relative
+          hidden md:flex flex-col bg-gray-800 text-white h-screen p-2
+          transition-all duration-300 ease-in-out relative
           ${isCollapsed ? "w-20" : "w-64"}
         `}
       >
-        {/* Botón colapsar */}
+        <div className="flex-grow">
+          <nav className="mt-10 space-y-2">
+            {menuItems.map((item) => (
+              <NavLink key={item.to} {...item} isCollapsed={isCollapsed} />
+            ))}
+          </nav>
+        </div>
+
+        {/* Botón de Logout para Escritorio */}
+        <div className="border-t border-gray-700 pt-2">
+           <button
+              onClick={handleLogout}
+              className={`w-full flex items-center gap-4 p-3 rounded-lg text-red-400 hover:bg-red-900/50 hover:text-white transition-colors ${isCollapsed ? 'justify-center' : ''}`}
+           >
+              <LogOut size={20} />
+              {!isCollapsed && <span className="font-medium">Cerrar Sesión</span>}
+           </button>
+        </div>
+
+        {/* Botón para colapsar/expandir */}
         <button
           onClick={toggleCollapse}
-          className="absolute -right-3 top-4 bg-gray-700 p-1 rounded-full shadow-md hover:bg-gray-600"
+          className="absolute -right-3 top-8 bg-gray-700 p-1.5 rounded-full shadow-lg hover:bg-gray-600 focus:outline-none"
         >
-          {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
-
-        <nav className="mt-16 space-y-2">
-          {menuItems.map((item, idx) => (
-            <Link
-              key={idx}
-              to={item.to}
-              className="flex items-center gap-3 p-2 hover:bg-gray-700 transition-colors"
-            >
-              {item.icon}
-              {!isCollapsed && <span>{item.label}</span>}
-            </Link>
-          ))}
-        </nav>
       </aside>
 
-      {/* Sidebar móvil */}
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
-          {/* Fondo oscuro */}
+      {/* --- Sidebar para Móvil (se muestra como un overlay) --- */}
+      <div className={`fixed inset-0 z-50 flex md:hidden transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="w-64 bg-gray-800 text-white h-full p-4 flex flex-col">
+            <button
+              onClick={toggleSidebar}
+              className="absolute top-4 right-4 p-1 rounded-md text-gray-400 hover:bg-gray-700"
+            >
+              <X size={24} />
+            </button>
+            <div className="flex-grow mt-16">
+              <nav className="space-y-2">
+                {menuItems.map((item) => (
+                  <NavLink key={item.to} {...item} isCollapsed={false} onClick={toggleSidebar} />
+                ))}
+              </nav>
+            </div>
+             <div className="border-t border-gray-700 pt-2">
+                <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-4 p-3 rounded-lg text-red-400 hover:bg-red-900/50 hover:text-white transition-colors"
+                >
+                    <LogOut size={20} />
+                    <span className="font-medium">Cerrar Sesión</span>
+                </button>
+             </div>
+          </div>
+          {/* Fondo oscuro para el overlay */}
           <div
             className="flex-1 bg-black bg-opacity-50"
             onClick={toggleSidebar}
           ></div>
-
-          {/* Panel lateral */}
-          <div className="w-64 bg-gray-800 text-white h-full p-4 relative">
-            <button
-              onClick={toggleSidebar}
-              className="absolute top-4 right-4 p-1 rounded-md hover:bg-gray-700"
-            >
-              <X size={20} />
-            </button>
-            <nav className="mt-12 space-y-2">
-              {menuItems.map((item, idx) => (
-                <Link
-                  key={idx}
-                  to={item.to}
-                  onClick={toggleSidebar}
-                  className="flex items-center gap-3 p-2 hover:bg-gray-700 transition-colors"
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </div>
-      )}
+      </div>
     </>
   );
 };

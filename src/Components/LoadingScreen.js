@@ -6,3 +6,6 @@ const LoadingScreen = () => (
         <p className="mt-4 text-lg">Cargando y autenticando...</p>
     </div>
 );
+
+// Añade esta línea al final del archivo
+export default LoadingScreen;

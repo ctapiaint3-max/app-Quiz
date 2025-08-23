@@ -108,3 +108,11 @@ export const getQuizHistory = (quizId, token) => {
     if (!quizId) return Promise.resolve([]);
     return fetchApi(`/api/results/${quizId}`, {}, token);
 };
+/**
+ * Obtiene todos los quizzes marcados como públicos.
+ * @param {string} token - El token de autenticación.
+ * @returns {Promise<Array>}
+ */
+export const getPublicQuizzes = (token) => {
+    return fetchApi('/api/quizzes/public', {}, token);
+};
