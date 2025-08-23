@@ -1,7 +1,8 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { jwtDecode } from 'jwt-decode'; // Asegúrate de tener jwt-decode instalado
+import { jwtDecode } from 'jwt-decode';
 import { login as loginService, register as registerService } from '../services/userService';
 
+// **CORRECCIÓN AQUÍ**: Añade "export" para que el contexto pueda ser importado
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -14,12 +15,11 @@ export const AuthProvider = ({ children }) => {
             const storedToken = localStorage.getItem('token');
             if (storedToken) {
                 const decoded = jwtDecode(storedToken);
-                // Verificamos si el token ha expirado
                 if (decoded.exp * 1000 > Date.now()) {
                     setToken(storedToken);
                     setUser({ id: decoded.userId, name: decoded.name, email: decoded.email });
                 } else {
-                    localStorage.removeItem('token'); // Limpiamos el token expirado
+                    localStorage.removeItem('token');
                 }
             }
         } catch (error) {
@@ -38,8 +38,6 @@ export const AuthProvider = ({ children }) => {
         const { token } = await loginService(email, password);
         localStorage.setItem('token', token);
         const decoded = jwtDecode(token);
-        
-        // **CORRECCIÓN CLAVE**: Guardamos los datos del usuario en el estado
         setUser({ id: decoded.userId, name: decoded.name, email: decoded.email });
         setToken(token);
     };
@@ -48,8 +46,6 @@ export const AuthProvider = ({ children }) => {
         const { token } = await registerService(name, email, password);
         localStorage.setItem('token', token);
         const decoded = jwtDecode(token);
-        
-        // **CORRECCIÓN CLAVE**: Guardamos los datos del usuario en el estado
         setUser({ id: decoded.userId, name: decoded.name, email: decoded.email });
         setToken(token);
     };

@@ -11,18 +11,22 @@ import QuizTakerPage from './pages/QuizTakerPage';
 import BibliotecaPage from './pages/BibliotecaPage';
 import QuizEditorPage from './pages/QuizEditorPage';
 import CommunityHub from './pages/CommunityHub';
-import LoadingScreen from './Components/LoadingScreen'; // Importación clave
+import LoadingScreen from './Components/LoadingScreen';
 
 // Importación del Hook de Autenticación
 import { useAuth } from './hooks/useAuth';
 
+/**
+ * Componente de Ruta Protegida
+ * Este es su lugar correcto. Verifica si el usuario está autenticado.
+ */
 const ProtectedRoute = () => {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return <LoadingScreen />;
   }
-  // Si está autenticado, renderiza el contenido anidado (Outlet). Si no, redirige a login.
+
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
 };
 
@@ -33,7 +37,7 @@ const AppRoutes = () => {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* Todas las rutas del dashboard están protegidas */}
+        {/* Todas las rutas del dashboard están protegidas por ProtectedRoute */}
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<DashboardPage />}>
             <Route index element={<Navigate to="biblioteca" replace />} />
@@ -47,7 +51,6 @@ const AppRoutes = () => {
           </Route>
         </Route>
         
-        {/* Redirección para la ruta raíz y cualquier otra no encontrada */}
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
     </Router>
