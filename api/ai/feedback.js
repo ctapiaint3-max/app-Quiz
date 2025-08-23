@@ -82,3 +82,4 @@ async function handler(req, res) {
 
 // Envolvemos el manejador con el middleware de autenticación.
 export default withAuth(handler);
+
