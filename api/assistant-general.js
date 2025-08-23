@@ -1,40 +1,32 @@
-import pool from '../lib/db'; // Ajusta la ruta según tu estructura de proyecto
-import fetch from 'node-fetch'; // Asegúrate de tener node-fetch instalado
-import withAuth from './middleware/auth'; // La ruta sube un nivel
+// api/assistant-general.js
 
-/**
- * Manejador para el asistente de IA general.
- * @param {import('http').IncomingMessage} req - La solicitud entrante.
- * @param {import('http').ServerResponse} res - La respuesta del servidor.
- */
-async function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
+    return res.status(405).json({ error: 'Método no permitido' });
   }
 
   const { question, history, context } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    console.error("CRITICAL ERROR: La variable de entorno GEMINI_API_KEY no está configurada.");
-    return res.status(500).json({ error: 'Error de configuración en el servidor. El servicio de IA no está disponible.' });
+    return res.status(500).json({ error: 'La clave API de Gemini no está configurada.' });
   }
 
-  // El userId se obtiene del middleware de autenticación.
-  const { userId } = req.user;
-
+  // Instrucción del sistema para definir la personalidad de la IA
   let systemInstructionText = "Tu nombre es Kai. Eres un asistente de IA amigable, servicial y experto en una amplia gama de temas. Tu propósito es ayudar a los usuarios a aprender y resolver sus dudas de manera clara y concisa. Siempre responde en español.";
 
+  // Si se proporciona un contexto (texto de un archivo), cambiamos la instrucción
   if (context && context.trim() !== '') {
     systemInstructionText = `Tu nombre es Kai. Eres un asistente experto, eres el asistente de aprendizaje del usuario, tu lo ayudaras a resolver dudas, y si te sube un documento lo ayudaras con la peticion que te haga relacionada a es documento.\n\nDOCUMENTO:\n---\n${context}\n---`;
   }
   
+  // Preparamos el historial para la IA, traduciendo 'assistant' a 'model'
   const contents = history.map(h => ({
-    role: h.role === 'assistant' ? 'model' : 'user',
+    role: h.role === 'assistant' ? 'model' : 'user', // <-- ESTA ES LA CORRECCIÓN
     parts: [{ text: h.text }]
   }));
   
+  // Añadimos la nueva pregunta del usuario
   contents.push({
     role: 'user',
     parts: [{ text: question }]
@@ -45,7 +37,7 @@ async function handler(req, res) {
   };
 
   try {
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -53,8 +45,8 @@ async function handler(req, res) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: { message: 'Respuesta no válida de la API de IA.' }}));
-      throw new Error(errorData.error.message || 'Error en la API de IA');
+      const errorData = await response.json();
+      throw new Error(errorData.error.message || 'Error en la API');
     }
 
     const result = await response.json();
@@ -65,36 +57,9 @@ async function handler(req, res) {
 
     const reply = result.candidates[0].content.parts[0].text;
     
-    // --- Lógica de Base de Datos ---
-    // Guardamos la interacción en la base de datos para llevar un historial.
-    let client;
-    try {
-      // 1. Conectar a la base de datos
-      client = await db.connect();
-      // 2. Guardar la interacción (asumimos que existe una tabla 'ai_chat_history')
-      await client.sql`
-        INSERT INTO ai_chat_history (user_id, question, reply, context)
-        VALUES (${userId}, ${question}, ${reply}, ${context || null});
-      `;
-    } catch (dbError) {
-      // Si falla el guardado en la BD, no interrumpimos la respuesta al usuario.
-      // Simplemente lo registramos en el log del servidor para futura depuración.
-      console.error('Error al guardar el historial del chat en la base de datos:', dbError);
-    } finally {
-      // 3. Desconectar (liberar el cliente) para devolverlo al pool de conexiones.
-      if (client) {
-        client.release();
-      }
-    }
-    // --- Fin de la lógica de base de datos ---
-
     res.status(200).json({ reply });
 
   } catch (error) {
-    console.error('Error en /api/assistant-general:', error);
     res.status(500).json({ error: error.message });
   }
 }
-
-// Envolvemos el manejador con el middleware de autenticación.
-export default withAuth(handler);
