@@ -106,7 +106,11 @@ export default async function handler(req, res) {
             throw new Error('El formato del JSON generado por la IA no es válido.');
         }
         
-        // Si todo es correcto, devolvemos el resultado original para que el frontend lo procese
+        // --- CORRECCIÓN APLICADA AQUÍ ---
+        // Modificamos el objeto de respuesta para que contenga el JSON ya limpio.
+        // Esto evita que el frontend tenga que lidiar con el texto sucio.
+        result.candidates[0].content.parts[0].text = JSON.stringify(parsedJson);
+        
         res.status(200).json(result);
 
     } else {
