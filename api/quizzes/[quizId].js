@@ -8,25 +8,28 @@ export default async function handler(req, res) {
 
     const { quizId } = req.query;
     const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ message: 'No autorizado' });
+    if (!authHeader) {
+        return res.status(401).json({ message: 'No autorizado' });
+    }
 
     const token = authHeader.split(' ')[1];
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const userId = decoded.userId;
+        jwt.verify(token, process.env.JWT_SECRET);
 
         const client = await db.connect();
         const { rows } = await client.sql`
-            SELECT id, score, completed_at FROM results
-            WHERE user_id = ${userId} AND quiz_id = ${quizId}
-            ORDER BY completed_at DESC LIMIT 10;
+            SELECT id, title, quiz_data, is_public FROM quizzes WHERE id = ${quizId};
         `;
         client.release();
 
-        res.status(200).json(rows);
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'Quiz no encontrado.' });
+        }
+
+        res.status(200).json(rows[0]);
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: 'Error al obtener historial.' });
+        res.status(500).json({ message: 'Error al obtener el quiz.' });
     }
 }

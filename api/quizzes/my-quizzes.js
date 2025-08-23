@@ -6,27 +6,29 @@ export default async function handler(req, res) {
         return res.status(405).json({ message: 'Method Not Allowed' });
     }
 
-    const { quizId } = req.query;
     const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ message: 'No autorizado' });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Token no proporcionado' });
+    }
 
     const token = authHeader.split(' ')[1];
+
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const userId = decoded.userId;
 
         const client = await db.connect();
         const { rows } = await client.sql`
-            SELECT id, score, completed_at FROM results
-            WHERE user_id = ${userId} AND quiz_id = ${quizId}
-            ORDER BY completed_at DESC LIMIT 10;
+            SELECT id, title, created_at, is_public, quiz_data 
+            FROM quizzes 
+            WHERE user_id = ${userId}
+            ORDER BY created_at DESC;
         `;
         client.release();
 
         res.status(200).json(rows);
-
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: 'Error al obtener historial.' });
+        res.status(500).json({ message: 'Error al obtener los quizzes del usuario.' });
     }
 }
