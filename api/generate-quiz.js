@@ -10,7 +10,7 @@ const isValidQuizFormat = (quiz) => {
       typeof question.pregunta !== 'string' ||
       typeof question.tema !== 'string' ||
       !Array.isArray(question.respuestas) ||
-      question.respuestas.length < 2 // Debe tener al menos 2 opciones
+      question.respuestas.length !== 4 // Debe tener exactamente 4 opciones
     ) {
       return false;
     }
