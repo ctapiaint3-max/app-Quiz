@@ -1,14 +1,14 @@
 // -----------------------------------------------------------------------------
-// ARCHIVO 1: src/Components/Biblioteca/QuizCard.js (VERSIÓN ACTUALIZADA)
+// ARCHIVO 2: src/Components/Biblioteca/QuizCard.js (VERSIÓN ACTUALIZADA)
 // -----------------------------------------------------------------------------
-// Ahora el botón "Iniciar" usa el hook useNavigate para navegar y pasar datos.
+// El botón "Editar" ahora navega a la nueva página de edición.
 
 import React from 'react';
-import { useNavigate } from 'react-router-dom'; // 1. Importamos useNavigate
+import { useNavigate } from 'react-router-dom';
 import { BookOpen, Edit, Trash2, Clock, HelpCircle } from 'lucide-react';
 
 const QuizCard = ({ quiz, onDelete }) => {
-    const navigate = useNavigate(); // 2. Inicializamos el hook
+    const navigate = useNavigate();
 
     const questionCount = quiz.questions ? quiz.questions.length : 0;
     const formattedDate = new Date(quiz.createdAt).toLocaleDateString('es-ES', {
@@ -17,13 +17,16 @@ const QuizCard = ({ quiz, onDelete }) => {
         year: 'numeric'
     });
 
-    // 3. Creamos la función para manejar el clic en "Iniciar"
     const handleStartQuiz = () => {
-        // Navegamos a la página para tomar el quiz
         navigate('/dashboard/tomar-quiz', { 
-            // Y pasamos el objeto completo del quiz en el 'state' de la navegación
             state: { quizToLoad: quiz } 
         });
+    };
+
+    // --- NUEVA FUNCIÓN ---
+    const handleEditQuiz = () => {
+        // Navega a la ruta del editor, pasando el ID del quiz en la URL
+        navigate(`/dashboard/editar-quiz/${quiz.id}`);
     };
 
     return (
@@ -40,7 +43,6 @@ const QuizCard = ({ quiz, onDelete }) => {
                 </div>
             </div>
             <div className="flex space-x-2">
-                {/* 4. Asignamos la nueva función al botón */}
                 <button 
                     onClick={handleStartQuiz}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center"
@@ -48,7 +50,11 @@ const QuizCard = ({ quiz, onDelete }) => {
                     <BookOpen className="h-5 w-5 mr-2" />
                     Iniciar
                 </button>
-                <button className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg" title="Editar">
+                <button 
+                    onClick={handleEditQuiz} // <-- Asignamos la nueva función
+                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg" 
+                    title="Editar"
+                >
                     <Edit className="h-5 w-5 text-gray-300" />
                 </button>
                 <button 
@@ -64,3 +70,4 @@ const QuizCard = ({ quiz, onDelete }) => {
 };
 
 export default QuizCard;
+
