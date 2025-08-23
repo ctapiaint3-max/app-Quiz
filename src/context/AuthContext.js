@@ -1,63 +1,43 @@
-import React, { createContext, useState, useEffect, useCallback } from 'react';
-import { jwtDecode } from 'jwt-decode';
-import { login as loginService, register as registerService } from '../services/userService';
+import React, { createContext, useState } from 'react';
 
-// **CORRECCIÓN AQUÍ**: Añade "export" para que el contexto pueda ser importado
+// Se crea el contexto y se exporta para que `useAuth` pueda usarlo.
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [token, setToken] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
+    // --- MODO DESARROLLO: Inicia sesión automáticamente ---
+    const [user, setUser] = useState({ id: 1, name: 'Usuario Dev', email: 'dev@example.com' });
+    const [token, setToken] = useState('fake-token-for-development');
+    const [isLoading, setIsLoading] = useState(false); // Falso para no ver la pantalla de carga
 
-    const checkAuth = useCallback(() => {
-        try {
-            const storedToken = localStorage.getItem('token');
-            if (storedToken) {
-                const decoded = jwtDecode(storedToken);
-                if (decoded.exp * 1000 > Date.now()) {
-                    setToken(storedToken);
-                    setUser({ id: decoded.userId, name: decoded.name, email: decoded.email });
-                } else {
-                    localStorage.removeItem('token');
-                }
-            }
-        } catch (error) {
-            console.error("Token inválido o expirado:", error);
-            localStorage.removeItem('token');
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        checkAuth();
-    }, [checkAuth]);
-
-    const login = async (email, password) => {
-        const { token } = await loginService(email, password);
-        localStorage.setItem('token', token);
-        const decoded = jwtDecode(token);
-        setUser({ id: decoded.userId, name: decoded.name, email: decoded.email });
-        setToken(token);
+    // Las funciones de login/register se dejan vacías y con un aviso.
+    const login = async () => {
+        alert("El login está deshabilitado en modo desarrollo.");
     };
 
-    const register = async (name, email, password) => {
-        const { token } = await registerService(name, email, password);
-        localStorage.setItem('token', token);
-        const decoded = jwtDecode(token);
-        setUser({ id: decoded.userId, name: decoded.name, email: decoded.email });
-        setToken(token);
+    const register = async () => {
+        alert("El registro está deshabilitado en modo desarrollo.");
     };
 
     const logout = () => {
-        localStorage.removeItem('token');
         setUser(null);
         setToken(null);
+        alert("Sesión cerrada. Refresca la página para volver a entrar en modo desarrollo.");
+    };
+
+    // El valor `isAuthenticated` se calcula directamente de la existencia del objeto `user`.
+    // Si `user` no es nulo, `isAuthenticated` será `true`.
+    const value = {
+        isAuthenticated: !!user,
+        user,
+        token,
+        isLoading,
+        login,
+        register,
+        logout
     };
 
     return (
-        <AuthContext.Provider value={{ isAuthenticated: !!user, user, token, isLoading, login, register, logout }}>
+        <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );
