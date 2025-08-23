@@ -1,12 +1,18 @@
 /**
- * Realiza una solicitud fetch a la API con manejo de errores y autenticación.
- * @param {string} url - La URL del endpoint de la API.
- * @param {object} options - Las opciones para la solicitud fetch (método, headers, body).
+ * Función centralizada para realizar solicitudes a la API.
+ * Maneja la autenticación, los errores y la conversión de datos.
+ * @param {string} url - El endpoint de la API al que se llamará.
+ * @param {object} options - Opciones para la solicitud fetch (método, cuerpo, etc.).
  * @param {string} [token] - El token de autenticación del usuario.
- * @returns {Promise<any>} - La respuesta JSON del servidor.
+ * @returns {Promise<any>} La respuesta JSON del servidor.
+ * @throws {Error} Si la respuesta de la red no es exitosa.
  */
 const fetchApi = async (url, options = {}, token) => {
-    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+    };
+
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
@@ -14,19 +20,23 @@ const fetchApi = async (url, options = {}, token) => {
     const response = await fetch(url, { ...options, headers });
 
     if (!response.ok) {
+        // Intenta obtener un mensaje de error del cuerpo de la respuesta
         const errorData = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(errorData.message || 'Ocurrió un error en la API');
+        throw new Error(errorData.message || 'Ocurrió un error en la comunicación con la API');
+    }
+
+    // Algunas respuestas (como DELETE) pueden no tener cuerpo
+    if (response.status === 204) {
+        return null;
     }
 
     return response.json();
 };
 
-// --- Funciones para la Biblioteca y Edición ---
+// --- API para la Biblioteca y Edición de Quizzes ---
 
 /**
- * Obtiene todos los quizzes del usuario autenticado.
- * @param {string} token - El token de autenticación.
- * @returns {Promise<Array>}
+ * Obtiene todos los quizzes del usuario autenticado desde la base de datos.
  */
 export const getMyQuizzes = (token) => {
     return fetchApi('/api/quizzes/my-quizzes', {}, token);
@@ -34,20 +44,13 @@ export const getMyQuizzes = (token) => {
 
 /**
  * Obtiene los datos completos de un solo quiz por su ID.
- * @param {number} quizId - El ID del quiz.
- * @param {string} token - El token de autenticación.
- * @returns {Promise<object>}
  */
 export const getQuizById = (quizId, token) => {
     return fetchApi(`/api/quizzes/${quizId}`, {}, token);
 };
 
-
 /**
  * Crea un nuevo quiz en la base de datos.
- * @param {object} quizData - { title, quiz_data, is_public }
- * @param {string} token - El token de autenticación.
- * @returns {Promise<object>}
  */
 export const createQuiz = (quizData, token) => {
     return fetchApi('/api/quizzes/create', {
@@ -58,10 +61,6 @@ export const createQuiz = (quizData, token) => {
 
 /**
  * Actualiza un quiz existente.
- * @param {number} quizId - El ID del quiz.
- * @param {object} quizData - Los nuevos datos del quiz.
- * @param {string} token - El token de autenticación.
- * @returns {Promise<object>}
  */
 export const updateQuiz = (quizId, quizData, token) => {
     return fetchApi(`/api/quizzes/update/${quizId}`, {
@@ -71,10 +70,7 @@ export const updateQuiz = (quizId, quizData, token) => {
 };
 
 /**
- * Elimina un quiz.
- * @param {number} quizId - El ID del quiz a eliminar.
- * @param {string} token - El token de autenticación.
- * @returns {Promise<object>}
+ * Elimina un quiz de la base de datos.
  */
 export const deleteQuiz = (quizId, token) => {
     return fetchApi(`/api/quizzes/delete/${quizId}`, {
@@ -82,14 +78,28 @@ export const deleteQuiz = (quizId, token) => {
     }, token);
 };
 
+// --- API para la Comunidad ---
 
-// --- Funciones para Resultados ---
+/**
+ * Obtiene todos los quizzes marcados como públicos.
+ */
+export const getPublicQuizzes = (token) => {
+    return fetchApi('/api/quizzes/public', {}, token);
+};
+
+/**
+ * Cambia el estado de visibilidad (público/privado) de un quiz.
+ */
+export const toggleQuizPublicStatus = (quizId, token) => {
+    return fetchApi(`/api/quizzes/togglePublic/${quizId}`, {
+        method: 'PATCH',
+    }, token);
+};
+
+// --- API para Resultados y Gamificación ---
 
 /**
  * Guarda el resultado de un intento de quiz.
- * @param {object} resultData - { quizId, score, details }
- * @param {string} token - El token de autenticación.
- * @returns {Promise<object>}
  */
 export const saveQuizResult = (resultData, token) => {
     return fetchApi('/api/results/save', {
@@ -100,19 +110,8 @@ export const saveQuizResult = (resultData, token) => {
 
 /**
  * Obtiene el historial de resultados para un quiz específico.
- * @param {number} quizId - El ID del quiz.
- * @param {string} token - El token de autenticación.
- * @returns {Promise<Array>}
  */
 export const getQuizHistory = (quizId, token) => {
     if (!quizId) return Promise.resolve([]);
     return fetchApi(`/api/results/${quizId}`, {}, token);
-};
-/**
- * Obtiene todos los quizzes marcados como públicos.
- * @param {string} token - El token de autenticación.
- * @returns {Promise<Array>}
- */
-export const getPublicQuizzes = (token) => {
-    return fetchApi('/api/quizzes/public', {}, token);
 };
