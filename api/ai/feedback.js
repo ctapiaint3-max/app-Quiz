@@ -8,8 +8,8 @@ import withAuth from '../middleware/auth'; // La ruta sube un nivel
  */
 async function handler(req, res) {
     // 1. Verificación de Variables de Entorno (solo la necesaria para esta API)
-    const { GEMINI_API_KEY } = process.env;
-    if (!GEMINI_API_KEY) {
+    const { GOOGLE_GENERATIVE_AI_API_KEY } = process.env;
+    if (!GOOGLE_GENERATIVE_AI_API_KEY) {
         console.error("CRITICAL ERROR: La variable de entorno GEMINI_API_KEY no está configurada.");
         return res.status(500).json({ error: "Error de configuración en el servidor. El servicio de IA no está disponible." });
     }
@@ -23,7 +23,7 @@ async function handler(req, res) {
         const { userId } = req.user; // userId viene del middleware
 
         // 2. Obtener resultados de la base de datos
-        const client = await db.connect();
+        const client = await pool.connect();
         const { rows: results } = await client.sql`
             SELECT q.title, r.score, r.completed_at 
             FROM results r
@@ -53,7 +53,7 @@ async function handler(req, res) {
         `;
 
         // 4. Llamar a la API de Gemini
-        const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+        const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GOOGLE_GENERATIVE_AI_API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })

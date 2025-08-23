@@ -17,7 +17,7 @@ async function handler(req, res) {
         const { quizId } = req.query;
         const { userId } = req.user; // userId viene de forma segura del middleware
 
-        const client = await db.connect();
+        const client = await pool.connect();
         const { rows } = await client.sql`
             SELECT id, score, completed_at FROM results
             WHERE user_id = ${userId} AND quiz_id = ${quizId}

@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        const client = await db.connect();
+        const client = await pool.connect();
         const { name, email, password } = req.body;
 
         if (!name || !email || !password) {

@@ -21,7 +21,7 @@ async function handler(req, res) {
             return res.status(400).json({ error: 'Faltan datos del resultado (quizId o score).' });
         }
 
-        const client = await db.connect();
+        const client = await pool.connect();
         
         // 1. Guardar resultado
         await client.sql`

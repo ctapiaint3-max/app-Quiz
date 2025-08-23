@@ -17,7 +17,7 @@ async function handler(req, res) {
         const { id: quizId } = req.query;
         const { userId } = req.user; // userId viene del middleware
 
-        const client = await db.connect();
+        const client = await pool.connect();
 
         // --- Lógica de Autorización ---
         // 1. Obtenemos el quiz para verificar su propietario y estado actual.

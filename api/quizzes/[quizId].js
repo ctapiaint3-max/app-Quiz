@@ -17,7 +17,7 @@ async function handler(req, res) {
         const { quizId } = req.query;
         const { userId } = req.user; // userId viene del middleware
 
-        const client = await db.connect();
+        const client = await pool.connect();
         const { rows } = await client.sql`
             SELECT id, title, quiz_data, is_public, user_id FROM quizzes WHERE id = ${quizId};
         `;

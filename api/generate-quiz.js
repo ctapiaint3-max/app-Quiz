@@ -44,7 +44,7 @@ export default async function handler(req, res) {
   try {
     // 2. Extraer datos del cuerpo de la petición
     const { sourceText, numQuestions } = req.body;
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
     // 3. Validar que la clave de API exista (causa común de error 500)
     if (!apiKey) {

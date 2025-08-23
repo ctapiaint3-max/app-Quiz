@@ -16,7 +16,7 @@ async function handler(req, res) {
         // El userId se obtiene de forma segura del token verificado por el middleware.
         const { userId } = req.user;
 
-        const client = await db.connect();
+        const client = await pool.connect();
         const { rows } = await client.sql`
             SELECT a.name, a.description, a.icon, ua.earned_at
             FROM user_achievements ua

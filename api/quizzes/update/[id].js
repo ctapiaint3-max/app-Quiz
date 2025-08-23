@@ -22,7 +22,7 @@ async function handler(req, res) {
       return res.status(400).json({ error: 'Faltan datos para actualizar el quiz.' });
     }
 
-    const client = await db.connect();
+    const client = await pool.connect();
 
     // --- Lógica de Autorización ---
     // 1. Verificamos si el quiz existe y obtenemos el ID de su propietario.

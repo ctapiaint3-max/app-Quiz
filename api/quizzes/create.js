@@ -1,5 +1,6 @@
-import { db } from '@vercel/postgres';
+
 import withAuth from '../middleware/auth';
+import pool from '../lib/db';
 
 /**
  * Manejador para crear un nuevo quiz para el usuario autenticado.
@@ -21,7 +22,7 @@ async function handler(req, res) {
       return res.status(400).json({ error: 'Faltan datos para crear el quiz.' });
     }
 
-    const client = await db.connect();
+    const client = await pool.connect();
     
     // Pasamos el objeto `quiz_data` directamente. 
     // La librería de Vercel Postgres se encarga de serializarlo a JSONB.

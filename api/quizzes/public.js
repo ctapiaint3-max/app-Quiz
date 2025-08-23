@@ -1,4 +1,4 @@
-import { db } from '@vercel/postgres';
+import pool from '../lib/db';
 import withAuth from '../middleware/auth'; // La ruta sube un nivel
 
 /**
@@ -16,7 +16,7 @@ async function handler(req, res) {
     // No necesitamos acceder a `req.user` aquí, pero sabemos que la petición es de un usuario válido.
 
     try {
-        const client = await db.connect();
+        const client = await pool.connect();
         const { rows } = await client.sql`
             SELECT 
                 q.id, 
@@ -39,4 +39,4 @@ async function handler(req, res) {
 
 // Envolvemos el manejador con el middleware para asegurar que solo usuarios
 // autenticados puedan ver los quizzes de la comunidad.
-export defau
+export default withAuth(handler);

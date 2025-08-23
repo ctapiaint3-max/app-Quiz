@@ -1,5 +1,6 @@
-import { db } from '@vercel/postgres';
+
 import withAuth from '../middleware/auth';
+import pool from '../lib/db';
 
 /**
  * Manejador para obtener los quizzes de un usuario autenticado.
@@ -19,7 +20,7 @@ async function handler(req, res) {
     // El middleware `withAuth` ha verificado el token y añadido `req.user`.
     const { userId } = req.user;
 
-    const client = await db.connect();
+    const client = await pool.connect();
     const { rows } = await client.sql`
         SELECT id, title, created_at, is_public, quiz_data 
         FROM quizzes 
