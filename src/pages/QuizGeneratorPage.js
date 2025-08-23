@@ -1,21 +1,36 @@
-// FILE: src/pages/QuizGeneratorPage.js
+// src/pages/QuizGeneratorPage.js
 
-import React from 'react';
-import { Upload, Bot, Clipboard, Download, Pencil, Save } from 'lucide-react'; // 1. Importamos el ícono de Guardar
+import React, { useState, useEffect } from 'react';
+import { Upload, Bot, Clipboard, Download, Pencil, Save } from 'lucide-react';
+
+// Esta función ahora es más inteligente para encontrar el array de preguntas
+const getQuestionsArrayFromAiJson = (jsonString) => {
+    const parsed = JSON.parse(jsonString);
+    if (Array.isArray(parsed)) {
+        return parsed; // El JSON ya es el array de preguntas
+    }
+    if (Array.isArray(parsed.questions)) {
+        return parsed.questions; // El array está dentro de una propiedad "questions"
+    }
+    // Si no encuentra un array, lanza un error claro.
+    throw new Error("El JSON generado no contiene un array de preguntas válido.");
+};
+
 
 const QuizGeneratorPage = () => {
-    const [sourceText, setSourceText] = React.useState('');
-    const [numQuestions, setNumQuestions] = React.useState(5);
-    const [fileName, setFileName] = React.useState('');
-    const [fileProcessing, setFileProcessing] = React.useState(false);
-    const [generatedJson, setGeneratedJson] = React.useState('');
-    const [isLoading, setIsLoading] = React.useState(false);
-    const [error, setError] = React.useState('');
-    const [copySuccess, setCopySuccess] = React.useState('');
-    const [saveSuccess, setSaveSuccess] = React.useState(''); // 2. Nuevo estado para el mensaje de guardado
-    const [isDragging, setIsDragging] = React.useState(false);
+    const [sourceText, setSourceText] = useState('');
+    const [numQuestions, setNumQuestions] = useState(5);
+    const [fileName, setFileName] = useState('');
+    const [fileProcessing, setFileProcessing] = useState(false);
+    const [generatedJson, setGeneratedJson] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [copySuccess, setCopySuccess] = useState('');
+    const [saveSuccess, setSaveSuccess] = useState('');
+    const [isDragging, setIsDragging] = useState(false);
 
-    React.useEffect(() => {
+    // ... (El resto de tus funciones como useEffect, processFile, etc., no necesitan cambios)
+    useEffect(() => {
         const pdfjsScriptUrl = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js";
         const mammothScriptUrl = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.18/mammoth.browser.min.js";
         const loadScript = (src) => new Promise((resolve, reject) => {
@@ -121,7 +136,13 @@ const QuizGeneratorPage = () => {
             const result = await response.json();
             if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
                 const jsonText = result.candidates[0].content.parts[0].text;
-                const parsedJson = JSON.parse(jsonText);
+                // **CORRECCIÓN**: Extraemos solo el JSON válido por si la IA añade texto extra.
+                const validJsonMatch = jsonText.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+                if (!validJsonMatch) {
+                    throw new Error("La respuesta de la IA no es un JSON reconocible.");
+                }
+                const cleanedJson = validJsonMatch[0];
+                const parsedJson = JSON.parse(cleanedJson);
                 setGeneratedJson(JSON.stringify(parsedJson, null, 2));
             } else {
                 throw new Error("La respuesta de la IA no tuvo el formato esperado.");
@@ -134,6 +155,32 @@ const QuizGeneratorPage = () => {
         }
     };
     
+    // **FUNCIÓN CORREGIDA Y MEJORADA**
+    const handleSaveToLibrary = () => {
+        if (!generatedJson) return;
+        try {
+            setError('');
+            // Usamos la nueva función para obtener el array de preguntas de forma segura
+            const questionsArray = getQuestionsArrayFromAiJson(generatedJson);
+
+            const existingQuizzes = JSON.parse(localStorage.getItem('myQuizzes')) || [];
+            const newQuiz = {
+                id: Date.now(),
+                title: fileName.replace(/\.[^/.]+$/, "") || "Nuevo Quiz de IA",
+                createdAt: new Date().toISOString(),
+                questions: questionsArray // Usamos el array extraído
+            };
+            
+            existingQuizzes.push(newQuiz);
+            localStorage.setItem('myQuizzes', JSON.stringify(existingQuizzes));
+
+            setSaveSuccess('¡Guardado en tu biblioteca!');
+            setTimeout(() => setSaveSuccess(''), 2000);
+        } catch (err) {
+            setError(`No se pudo guardar: ${err.message}`);
+            console.error("Error saving to localStorage", err);
+        }
+    };
     const handleCopyToClipboard = () => {
         if (!generatedJson) return;
         navigator.clipboard.writeText(generatedJson).then(() => {
@@ -157,31 +204,7 @@ const QuizGeneratorPage = () => {
         URL.revokeObjectURL(url);
     };
 
-    // --- 3. Nueva función para guardar en localStorage ---
-    const handleSaveToLibrary = () => {
-        if (!generatedJson) return;
-        try {
-            // Obtenemos los quizzes existentes o creamos un array vacío
-            const existingQuizzes = JSON.parse(localStorage.getItem('myQuizzes')) || [];
-            const newQuiz = {
-                id: Date.now(), // ID único basado en la fecha actual
-                title: fileName.replace(/\.[^/.]+$/, "") || "Nuevo Quiz",
-                createdAt: new Date().toISOString(),
-                questions: JSON.parse(generatedJson)
-            };
-            
-            // Añadimos el nuevo quiz y lo guardamos
-            existingQuizzes.push(newQuiz);
-            localStorage.setItem('myQuizzes', JSON.stringify(existingQuizzes));
-
-            setSaveSuccess('¡Guardado en tu biblioteca!');
-            setTimeout(() => setSaveSuccess(''), 2000);
-        } catch (err) {
-            setError('No se pudo guardar el quiz. Inténtalo de nuevo.');
-            console.error("Error saving to localStorage", err);
-        }
-    };
-
+    // ... (el JSX no necesita cambios)
     return (
         <div className="w-full max-w-4xl mx-auto p-8 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700">
             <div className="text-center mb-8">
@@ -215,17 +238,16 @@ const QuizGeneratorPage = () => {
                             <div className="absolute top-2 right-2 flex flex-col space-y-2">
                                 <button onClick={handleCopyToClipboard} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg" title="Copiar"><Clipboard className="h-5 w-5 text-gray-300" /></button>
                                 <button onClick={handleDownloadJson} className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg" title="Descargar"><Download className="h-5 w-5 text-gray-300" /></button>
-                                {/* --- 4. Nuevo botón de Guardar --- */}
                                 <button onClick={handleSaveToLibrary} className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg" title="Guardar en Biblioteca"><Save className="h-5 w-5 text-white" /></button>
                             </div>
                         </div>
                         {copySuccess && <p className="text-green-400 mt-2 text-center">{copySuccess}</p>}
-                        {saveSuccess && <p className="text-green-400 mt-2 text-center">{saveSuccess}</p>}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-export default QuizGeneratorPage;
+                                            {saveSuccess && <p className="text-green-400 mt-2 text-center">{saveSuccess}</p>}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    };
+                    
+                    export default QuizGeneratorPage;

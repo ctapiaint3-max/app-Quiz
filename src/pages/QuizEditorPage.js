@@ -1,89 +1,175 @@
-import React, { useState } from 'react'; // Eliminamos useEffect
-import { useParams, useNavigate } from 'react-router-dom';
-import { Save } from 'lucide-react'; // Eliminamos los íconos no usados
-import { useAuth } from '../hooks/useAuth'; 
-import { updateQuiz } from '../services/quizService'; 
+// ARCHIVO 1: src/pages/QuizEditorPage.js (versión corregida)
+import React, { useState, useEffect } from 'react';
 
 const QuizEditorPage = () => {
-    const { quizId } = useParams();
-    const navigate = useNavigate();
-    const { token } = useAuth();
-    const [quiz, setQuiz] = useState(null); // setQuiz ahora se usará
-    const [isLoading, setIsLoading] = useState(true); // Se usarán ambos
-    const [error, setError] = useState('');
-    const [isSaving, setIsSaving] = useState(false);
+    const [quiz, setQuiz] = useState({
+        title: '',
+        description: '',
+        questions: []
+    });
 
-    // Este useEffect es necesario para cargar los datos del quiz
-    React.useEffect(() => {
-        const fetchQuiz = async () => {
-            // Aquí deberías tener una función para obtener un quiz por ID desde tu backend
-            // Por ahora, mantendré la lógica de localStorage
+    // Cargar quiz para editar si hay un ID en la URL
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const quizId = urlParams.get('quizId');
+        
+        if (quizId) {
             const storedQuizzes = JSON.parse(localStorage.getItem('myQuizzes')) || [];
-            const quizToEdit = storedQuizzes.find(q => q.id.toString() === quizId);
+            const quizToEdit = storedQuizzes.find(q => q.id === parseInt(quizId));
             
             if (quizToEdit) {
                 setQuiz(quizToEdit);
             }
-            setIsLoading(false);
-        };
+        }
+    }, []);
 
-        fetchQuiz();
-    }, [quizId]);
-
-    // ... (aquí van todos tus handlers: handleTitleChange, handleQuestionChange, etc.)
-    const handleTitleChange = (e) => {
-        setQuiz({ ...quiz, title: e.target.value });
+    const handleSaveQuiz = () => {
+        // Lógica para guardar el quiz
+        const storedQuizzes = JSON.parse(localStorage.getItem('myQuizzes')) || [];
+        
+        if (quiz.id) {
+            // Editar quiz existente
+            const updatedQuizzes = storedQuizzes.map(q => 
+                q.id === quiz.id ? quiz : q
+            );
+            localStorage.setItem('myQuizzes', JSON.stringify(updatedQuizzes));
+        } else {
+            // Crear nuevo quiz
+            const newQuiz = {
+                ...quiz,
+                id: Date.now(),
+                createdAt: new Date().toISOString()
+            };
+            localStorage.setItem('myQuizzes', JSON.stringify([...storedQuizzes, newQuiz]));
+        }
+        
+        alert('Quiz guardado correctamente');
     };
 
-    const handleQuestionChange = (qIndex, value) => {
+    const addQuestion = () => {
+        setQuiz({
+            ...quiz,
+            questions: [
+                ...quiz.questions,
+                {
+                    question: '',
+                    options: ['', '', '', ''],
+                    correctAnswer: 0,
+                    tema: ''
+                }
+            ]
+        });
+    };
+
+    const updateQuestion = (index, field, value) => {
         const updatedQuestions = [...quiz.questions];
-        updatedQuestions[qIndex].pregunta = value;
+        updatedQuestions[index][field] = value;
         setQuiz({ ...quiz, questions: updatedQuestions });
     };
-    
-    // Añade el resto de tus handlers aquí...
 
-    const handleSaveChanges = async () => {
-        setIsSaving(true);
-        setError('');
-        try {
-            // Asumimos que "quiz" tiene el formato correcto para tu API
-            const quizPayload = {
-              title: quiz.title,
-              quiz_data: { questions: quiz.questions }, // Ajusta esto según tu API
-              is_public: quiz.is_public || false
-            };
-            await updateQuiz(quizId, quizPayload, token);
-            navigate('/dashboard/biblioteca');
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setIsSaving(false);
-        }
+    const updateOption = (questionIndex, optionIndex, value) => {
+        const updatedQuestions = [...quiz.questions];
+        updatedQuestions[questionIndex].options[optionIndex] = value;
+        setQuiz({ ...quiz, questions: updatedQuestions });
     };
-    
-    if (isLoading) {
-        return <div className="text-center text-white">Cargando editor...</div>;
-    }
-
-    if (!quiz) {
-        return <div className="text-center text-red-400">Quiz no encontrado.</div>;
-    }
 
     return (
-        <div className="w-full max-w-4xl mx-auto">
-             {/* Aquí va todo tu JSX para renderizar el editor */}
-             {/* ... */}
-            <div className="mt-8 text-right">
-                <button 
-                  onClick={handleSaveChanges} 
-                  disabled={isSaving}
-                  className="bg-green-600 hover:bg-green-700 disabled:bg-gray-500 text-white font-bold py-3 px-8 rounded-lg text-lg flex items-center ml-auto"
+        <div className="min-h-screen bg-gray-900 text-white p-6">
+            <h1 className="text-3xl font-bold mb-6">Editor de Quiz</h1>
+            
+            <div className="max-w-4xl mx-auto">
+                <div className="bg-gray-800 p-6 rounded-lg mb-6">
+                    <h2 className="text-xl font-semibold mb-4">Información del Quiz</h2>
+                    
+                    <div className="mb-4">
+                        <label className="block text-gray-300 mb-2">Título del Quiz</label>
+                        <input
+                            type="text"
+                            value={quiz.title}
+                            onChange={(e) => setQuiz({ ...quiz, title: e.target.value })}
+                            className="w-full p-3 bg-gray-700 rounded-lg text-white"
+                            placeholder="Ingresa el título del quiz"
+                        />
+                    </div>
+                    
+                    <div className="mb-4">
+                        <label className="block text-gray-300 mb-2">Descripción</label>
+                        <textarea
+                            value={quiz.description}
+                            onChange={(e) => setQuiz({ ...quiz, description: e.target.value })}
+                            className="w-full p-3 bg-gray-700 rounded-lg text-white"
+                            placeholder="Describe el quiz"
+                            rows="3"
+                        />
+                    </div>
+                </div>
+
+                <div className="bg-gray-800 p-6 rounded-lg mb-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-semibold">Preguntas</h2>
+                        <button
+                            onClick={addQuestion}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
+                        >
+                            + Añadir Pregunta
+                        </button>
+                    </div>
+
+                    {quiz.questions.map((question, qIndex) => (
+                        <div key={qIndex} className="mb-6 p-4 bg-gray-700 rounded-lg">
+                            <div className="mb-4">
+                                <label className="block text-gray-300 mb-2">Pregunta {qIndex + 1}</label>
+                                <input
+                                    type="text"
+                                    value={question.question}
+                                    onChange={(e) => updateQuestion(qIndex, 'question', e.target.value)}
+                                    className="w-full p-3 bg-gray-600 rounded-lg text-white"
+                                    placeholder="Escribe la pregunta"
+                                />
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block text-gray-300 mb-2">Tema</label>
+                                <input
+                                    type="text"
+                                    value={question.tema}
+                                    onChange={(e) => updateQuestion(qIndex, 'tema', e.target.value)}
+                                    className="w-full p-3 bg-gray-600 rounded-lg text-white"
+                                    placeholder="Ej: Matemáticas, Historia, etc."
+                                />
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block text-gray-300 mb-2">Opciones de respuesta</label>
+                                {question.options.map((option, oIndex) => (
+                                    <div key={oIndex} className="flex items-center mb-2">
+                                        <input
+                                            type="radio"
+                                            name={`correctAnswer-${qIndex}`}
+                                            checked={question.correctAnswer === oIndex}
+                                            onChange={() => updateQuestion(qIndex, 'correctAnswer', oIndex)}
+                                            className="mr-3"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={option}
+                                            onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
+                                            className="flex-1 p-2 bg-gray-600 rounded-lg text-white"
+                                            placeholder={`Opción ${oIndex + 1}`}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <button
+                    onClick={handleSaveQuiz}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg text-lg font-semibold"
                 >
-                    <Save className="mr-2 h-5 w-5" />
-                    {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+                    Guardar Quiz
                 </button>
-                {error && <p className="text-red-400 mt-2">{error}</p>}
             </div>
         </div>
     );
