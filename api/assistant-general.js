@@ -1,3 +1,4 @@
+import { db } from '@vercel/postgres';
 import withAuth from './middleware/auth'; // La ruta sube un nivel
 
 /**
@@ -19,8 +20,8 @@ async function handler(req, res) {
     return res.status(500).json({ error: 'Error de configuración en el servidor. El servicio de IA no está disponible.' });
   }
 
-  // La autenticación ya fue validada por el middleware `withAuth`.
-  // `req.user` está disponible si se necesita personalizar la respuesta.
+  // El userId se obtiene del middleware de autenticación.
+  const { userId } = req.user;
 
   let systemInstructionText = "Tu nombre es Kai. Eres un asistente de IA amigable, servicial y experto en una amplia gama de temas. Tu propósito es ayudar a los usuarios a aprender y resolver sus dudas de manera clara y concisa. Siempre responde en español.";
 
@@ -28,13 +29,11 @@ async function handler(req, res) {
     systemInstructionText = `Tu nombre es Kai. Eres un asistente experto, eres el asistente de aprendizaje del usuario, tu lo ayudaras a resolver dudas, y si te sube un documento lo ayudaras con la peticion que te haga relacionada a es documento.\n\nDOCUMENTO:\n---\n${context}\n---`;
   }
   
-  // Preparamos el historial para la IA, traduciendo 'assistant' a 'model'
   const contents = history.map(h => ({
     role: h.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: h.text }]
   }));
   
-  // Añadimos la nueva pregunta del usuario
   contents.push({
     role: 'user',
     parts: [{ text: question }]
@@ -65,6 +64,29 @@ async function handler(req, res) {
 
     const reply = result.candidates[0].content.parts[0].text;
     
+    // --- Lógica de Base de Datos ---
+    // Guardamos la interacción en la base de datos para llevar un historial.
+    let client;
+    try {
+      // 1. Conectar a la base de datos
+      client = await db.connect();
+      // 2. Guardar la interacción (asumimos que existe una tabla 'ai_chat_history')
+      await client.sql`
+        INSERT INTO ai_chat_history (user_id, question, reply, context)
+        VALUES (${userId}, ${question}, ${reply}, ${context || null});
+      `;
+    } catch (dbError) {
+      // Si falla el guardado en la BD, no interrumpimos la respuesta al usuario.
+      // Simplemente lo registramos en el log del servidor para futura depuración.
+      console.error('Error al guardar el historial del chat en la base de datos:', dbError);
+    } finally {
+      // 3. Desconectar (liberar el cliente) para devolverlo al pool de conexiones.
+      if (client) {
+        client.release();
+      }
+    }
+    // --- Fin de la lógica de base de datos ---
+
     res.status(200).json({ reply });
 
   } catch (error) {
